@@ -1,0 +1,26 @@
+{
+  "name": "@qor5/fe-infra",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "doc": "pnpm -F @qortex/ui-kit storybook",
+    "bootstrap": "pnpm -r --filter './packages/*' install && pnpm -r --filter './apps/*' install&&pnpm i -w",
+    "format": "prettier --write .{ts,tsx,scss,less,json}",
+    "prepare": "husky install",
+    "knip": "knip"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.15.1",
+  "devDependencies": {
+    "eslint": "^9.35.0",
+    "prettier": "^3.6.2",
+    "husky": "^8.0.0",
+    "knip": "^5.62.0",
+    "lint-staged": "^15.2.10"
+  }
+}

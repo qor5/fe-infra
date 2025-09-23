@@ -1,0 +1,20 @@
+{
+  // Use ESLint to fix problems on save
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  // Use Prettier as default formatter
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  // Format on save with Prettier
+  "editor.formatOnSave": false,
+  // Ensure TS Server uses workspace TypeScript
+  "typescript.tsdk": "node_modules/typescript/lib",
+  // Enable ESLint for TS/JS
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact",
+    "json"
+  ]
+}
