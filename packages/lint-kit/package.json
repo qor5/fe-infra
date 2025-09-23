@@ -1,5 +1,5 @@
 {
-  "name": "@qortex/lint-kit",
+  "name": "@qor5/fe-infra-lint-kit",
   "version": "1.0.0",
   "description": "",
   "type": "module",
@@ -28,5 +28,5 @@
     "eslint": "^9.33.0",
     "prettier": "^3.6.2"
   },
-  "packageManager": "pnpm@10.15.1"
+  "packageManager": "pnpm@10.17.1"
 }
