@@ -9,7 +9,10 @@
     "bootstrap": "pnpm -r --filter './packages/*' install && pnpm -r --filter './apps/*' install&&pnpm i -w",
     "format": "prettier --write .{ts,tsx,scss,less,json}",
     "prepare": "husky install",
-    "knip": "knip"
+    "knip": "knip",
+    "changeset": "changeset",
+    "release": "pnpm changeset version && pnpm -r -w install --no-frozen-lockfile && pnpm -r publish --registry https://npm.pkg.github.com",
+    "changelog": "pnpm changeset changelog"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +24,7 @@
     "husky": "^8.0.0",
     "knip": "^5.62.0",
     "lint-staged": "^15.2.10",
-    "@qor5/fe-infra-lint-kit": "workspace:*"
+    "@qor5/fe-infra-lint-kit": "workspace:*",
+    "@changesets/cli": "^2.27.9"
   }
 }
