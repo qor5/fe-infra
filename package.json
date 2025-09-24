@@ -11,7 +11,8 @@
     "prepare": "husky install",
     "knip": "knip",
     "changeset": "changeset",
-    "release": "pnpm changeset version && pnpm -r -w install --no-frozen-lockfile && pnpm -r publish --registry https://npm.pkg.github.com",
+    "tag": "changeset tag",
+    "release": "pnpm -r -w install --no-frozen-lockfile && pnpm -r publish --registry https://npm.pkg.github.com && pnpm changeset tag && git push --follow-tags",
     "changelog": "pnpm changeset changelog"
   },
   "keywords": [],
