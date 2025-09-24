@@ -1,5 +1,11 @@
 # @qor5/fe-infra-lint-kit
 
+## 1.0.2
+
+### Patch Changes
+
+- [#8](https://github.com/qor5/fe-infra/pull/8) [`ebc7a5e`](https://github.com/qor5/fe-infra/commit/ebc7a5ecf5a171d4f9974ede1e134847b9a7afe6) Thanks [@danni-cool](https://github.com/danni-cool)! - test releast
+
 ## 1.0.1
 
 ### Patch Changes
