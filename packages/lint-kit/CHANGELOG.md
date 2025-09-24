@@ -1,5 +1,11 @@
 # @qor5/fe-infra-lint-kit
 
+## 1.0.3
+
+### Patch Changes
+
+- [#14](https://github.com/qor5/fe-infra/pull/14) [`467fb9b`](https://github.com/qor5/fe-infra/commit/467fb9b9cb8e054611a26123240d1f2170963601) Thanks [@danni-cool](https://github.com/danni-cool)! - add missing dependency (eslint-config-prettier)
+
 ## 1.0.2
 
 ### Patch Changes
