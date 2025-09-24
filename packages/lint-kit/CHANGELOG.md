@@ -1,5 +1,15 @@
 # @qor5/fe-infra-lint-kit
 
+## 1.1.0
+
+### Minor Changes
+
+- [#18](https://github.com/qor5/fe-infra/pull/18) [`f8e8a2d`](https://github.com/qor5/fe-infra/commit/f8e8a2d4d4eb6a9c9d1a363a0e4e75cda57ed676) Thanks [@danni-cool](https://github.com/danni-cool)! - 新增xxx功能
+
+### Patch Changes
+
+- [#16](https://github.com/qor5/fe-infra/pull/16) [`551c6be`](https://github.com/qor5/fe-infra/commit/551c6bef54316254d6f8a2e79e81b2ff2f0a1e1e) Thanks [@danni-cool](https://github.com/danni-cool)! - 1.新增了xxx功能，优化了xxx，解决了x个bug
+
 ## 1.0.3
 
 ### Patch Changes
