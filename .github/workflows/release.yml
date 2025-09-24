@@ -34,7 +34,6 @@ jobs:
       - name: Create version PR / tags
         uses: changesets/action@v1
         with:
-          publish: pnpm release
+          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
