@@ -1,4 +1,4 @@
-# @qor5/fe-infra-lint-kit
+# @qor5-fe/lint-kit
 
 ## 1.0.3
 
