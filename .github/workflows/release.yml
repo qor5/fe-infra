@@ -32,10 +32,53 @@ jobs:
         run: pnpm i -w --frozen-lockfile
 
       - name: Create version PR / tags
+        id: changesets
         uses: changesets/action@v1
         with:
           publish: pnpm release
-          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create combined GitHub Release
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          # Get all published packages
+          PUBLISHED='${{ steps.changesets.outputs.publishedPackages }}'
+          echo "Published packages: $PUBLISHED"
+
+          # Extract package info and create release notes
+          PACKAGE_LIST=$(echo "$PUBLISHED" | jq -r '.[] | "- **\(.name)@\(.version)**"')
+
+          # Create a release date tag
+          RELEASE_TAG="release-$(date +%Y%m%d-%H%M%S)"
+
+          # Build changelog links
+          CHANGELOG_LINKS=""
+          for pkg in $(echo "$PUBLISHED" | jq -r '.[].name'); do
+            pkg_path=$(echo $pkg | sed 's/@qor5\///')
+            CHANGELOG_LINKS="$CHANGELOG_LINKS
+          - [$pkg CHANGELOG](https://github.com/qor5/fe-infra/blob/main/packages/$pkg_path/CHANGELOG.md)"
+          done
+
+          # Create release notes
+          cat << EOF > release-notes.md
+          ## 📦 Published Packages
+
+          $PACKAGE_LIST
+
+          ## 📝 Changelogs
+
+          $CHANGELOG_LINKS
+
+          ---
+
+          View detailed changes in each package's CHANGELOG file.
+          EOF
+
+          # Create GitHub Release
+          gh release create "$RELEASE_TAG" \
+            --title "Release $(date +%Y-%m-%d)" \
+            --notes-file release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
