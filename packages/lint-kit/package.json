@@ -1,7 +1,7 @@
 {
   "name": "@qor5/fe-lint-kit",
-  "version": "1.0.3",
   "description": "Opinionated ESLint and Prettier configuration for React + TypeScript projects",
+  "version": "1.1.0",
   "type": "module",
   "main": "./index.js",
   "exports": {

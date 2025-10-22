@@ -1,6 +1,6 @@
 {
   "name": "@qor5/fetch-middleware",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Fetch wrapper with onion-style middlewares for composable request/response handling",
   "type": "module",
   "main": "./src/index.ts",
