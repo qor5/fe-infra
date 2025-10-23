@@ -93,23 +93,26 @@ import {
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 
+// Use binary format (protobuf) instead of JSON
+const useBinaryFormat = false;
+
 // Create fetch client for Connect-RPC
 const fetchClient = createFetchClient({
   fetchInit: {
     credentials: "include",
     headers: {
-      Accept: "application/json",
-      "X-Ensure-Connect-Error": "true", // Get Connect standard error format
+      Accept: useBinaryFormat ? "application/proto" : "application/json",
+      // Ensure server returns Connect standard error format with Details
+      "X-Ensure-Connect-Error": "true",
     },
   },
-  middlewares: [
-    formatProtoErrorMiddleware(), // Handle Proto/Protobuf errors
-  ],
+  middlewares: [formatProtoErrorMiddleware()],
 });
 
 // Create Connect transport with the fetch client
 const transport = createConnectTransport({
   baseUrl: "http://localhost:8787",
+  useBinaryFormat,
   fetch: fetchClient, // Pass as fetch handler
 });
 
@@ -559,13 +562,18 @@ import {
 import { createClient, type Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { AuthService } from "./proto/auth_pb";
+import { toast } from "@/lib/toast";
+
+// Use binary format (protobuf) instead of JSON
+const useBinaryFormat = false;
 
 // Create fetch client with Proto error handling
 const fetchClient = createFetchClient({
   fetchInit: {
     credentials: "include",
     headers: {
-      Accept: "application/json",
+      Accept: useBinaryFormat ? "application/proto" : "application/json",
+      // Ensure server returns Connect standard error format with Details
       "X-Ensure-Connect-Error": "true",
     },
   },
@@ -603,6 +611,7 @@ const errorInterceptor: Interceptor = (next) => async (req) => {
 // Create Connect transport
 const transport = createConnectTransport({
   baseUrl: "http://localhost:8787",
+  useBinaryFormat,
   fetch: fetchClient,
   interceptors: [errorInterceptor],
 });
