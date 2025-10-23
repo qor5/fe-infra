@@ -6,3 +6,6 @@ export * from "./rest";
 
 // All middleware helpers
 export * from "./lib";
+
+// Proto errors
+export { parseConnectError } from "./utils/proto-errors";
