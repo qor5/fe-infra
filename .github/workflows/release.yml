@@ -56,9 +56,9 @@ jobs:
           # Build changelog links
           CHANGELOG_LINKS=""
           for pkg in $(echo "$PUBLISHED" | jq -r '.[].name'); do
-            pkg_path=$(echo $pkg | sed 's/@qor5\///')
+            pkg_path=$(echo $pkg | sed 's/@theplant\///')
             CHANGELOG_LINKS="$CHANGELOG_LINKS
-          - [$pkg CHANGELOG](https://github.com/qor5/fe-infra/blob/main/packages/$pkg_path/CHANGELOG.md)"
+          - [$pkg CHANGELOG](https://github.com/theplant/qor5-fe-infra/blob/main/packages/$pkg_path/CHANGELOG.md)"
           done
 
           # Create release notes
