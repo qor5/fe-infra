@@ -10,7 +10,7 @@
 - Repo settings → Actions → General:
   - Workflow permissions: Read and write permissions
   - Allow GitHub Actions to create and approve pull requests
-- Package naming: packages must be scoped (e.g. `@qor5/fe-lint-kit`).
+- Package naming: packages must be scoped (e.g. `@theplant/fe-lint-kit`).
 - Registry is already configured:
   - `.npmrc` routes `@qor5` to `https://npm.pkg.github.com` and uses `NODE_AUTH_TOKEN` (provided automatically as `GITHUB_TOKEN` in CI).
   - Each package has `publishConfig.registry: https://npm.pkg.github.com/`.

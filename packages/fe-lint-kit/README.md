@@ -1,4 +1,4 @@
-# @qor5/fe-lint-kit
+# @theplant/fe-lint-kit
 
 一个开箱即用的 ESLint 和 Prettier 配置包，专为 React + TypeScript 项目设计。
 
@@ -15,7 +15,7 @@
 ## 安装
 
 ```bash
-pnpm add -D @qor5/fe-lint-kit eslint prettier
+pnpm add -D @theplant/fe-lint-kit eslint prettier
 ```
 
 > **注意**: `eslint` 和 `prettier` 是 peer dependencies，需要在你的项目中安装。
@@ -27,7 +27,7 @@ pnpm add -D @qor5/fe-lint-kit eslint prettier
 在项目根目录创建 `eslint.config.js`:
 
 ```js
-import { eslintReactConfig } from '@qor5/fe-lint-kit'
+import { eslintReactConfig } from '@theplant/fe-lint-kit'
 
 export default [
   ...eslintReactConfig,
@@ -41,7 +41,7 @@ export default [
 #### 高级用法（带 TypeScript 项目服务）
 
 ```js
-import { eslintReactConfig } from '@qor5/fe-lint-kit'
+import { eslintReactConfig } from '@theplant/fe-lint-kit'
 
 const __dirname = import.meta.dirname
 
@@ -71,7 +71,7 @@ export default [
 在项目根目录创建 `.prettierrc.js`:
 
 ```js
-import { prettierReactConfig } from '@qor5/fe-lint-kit'
+import { prettierReactConfig } from '@theplant/fe-lint-kit'
 
 export default {
   ...prettierReactConfig,
@@ -138,8 +138,8 @@ ESLint 配置默认忽略以下文件/文件夹:
 **eslint.config.js:**
 
 ```js
-import { eslintReactConfig } from '@qor5/fe-lint-kit'
 import pluginQuery from '@tanstack/eslint-plugin-query'
+import { eslintReactConfig } from '@theplant/fe-lint-kit'
 
 const __dirname = import.meta.dirname
 
@@ -163,7 +163,7 @@ export default [
 **.prettierrc.js:**
 
 ```js
-import { prettierReactConfig } from '@qor5/fe-lint-kit'
+import { prettierReactConfig } from '@theplant/fe-lint-kit'
 
 export default {
   ...prettierReactConfig,
@@ -175,7 +175,7 @@ export default {
 ```json
 {
   "devDependencies": {
-    "@qor5/fe-lint-kit": "^1.0.3",
+    "@theplant/fe-lint-kit": "^1.0.3",
     "eslint": "^9.35.0",
     "prettier": "^3.6.2"
   },
@@ -250,7 +250,7 @@ ESLint 9+ 推荐使用新的扁平化配置格式 (Flat Config)，它提供了�
 在你的 `eslint.config.js` 中添加自定义规则:
 
 ```js
-import { eslintReactConfig } from '@qor5/fe-lint-kit'
+import { eslintReactConfig } from '@theplant/fe-lint-kit'
 
 export default [
   ...eslintReactConfig,
