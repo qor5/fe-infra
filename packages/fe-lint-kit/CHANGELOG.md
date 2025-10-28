@@ -1,5 +1,11 @@
 # @qor5-fe/lint-kit
 
+## 1.1.1
+
+### Patch Changes
+
+- [#27](https://github.com/theplant/qor5-fe-infra/pull/27) [`9a2add9`](https://github.com/theplant/qor5-fe-infra/commit/9a2add98a21fbe76cfdf34d55b474cd7bd478945) Thanks [@danni-cool](https://github.com/danni-cool)! - change the pkg name and move pkg to @theplant
+
 ## 1.1.0
 
 ### Minor Changes
