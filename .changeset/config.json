@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@2.3.1/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "@theplant/qor5-fe-infra" }],
+  "changelog": [
+    "@changesets/changelog-github",
+    { "repo": "theplant/qor5-fe-infra" }
+  ],
   "commit": false,
   "fixed": [],
   "linked": [],
