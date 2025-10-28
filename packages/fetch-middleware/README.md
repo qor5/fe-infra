@@ -17,16 +17,16 @@ A flexible and composable middleware system for `fetch` API with support for bot
 
 ```bash
 # Configure npm to use GitHub Packages (one-time setup)
-echo "@qor5:registry=https://npm.pkg.github.com" >> .npmrc
+echo "@theplant:registry=https://npm.pkg.github.com" >> .npmrc
 
 # Install the package
-pnpm add @qor5/fetch-middleware
+pnpm add @theplant/fetch-middleware
 ```
 
 ### From npm (if published)
 
 ```bash
-pnpm add @qor5/fetch-middleware
+pnpm add @theplant/fetch-middleware
 ```
 
 ## Core Concepts
@@ -36,7 +36,7 @@ pnpm add @qor5/fetch-middleware
 A middleware is a function that intercepts requests and responses:
 
 ```typescript
-import type { Middleware } from "@qor5/fetch-middleware";
+import type { Middleware } from "@theplant/fetch-middleware";
 
 const myMiddleware: Middleware = async (req, next, ctx) => {
   // Before request
@@ -62,7 +62,7 @@ import {
   jsonResponseMiddleware,
   extractBodyMiddleware,
   httpErrorMiddleware,
-} from "@qor5/fetch-middleware";
+} from "@the plan tfetch-middleware";
 
 // Create a REST client
 const client = createFetchClient({
@@ -89,7 +89,7 @@ import {
   createFetchClient,
   formatProtoErrorMiddleware,
   parseConnectError,
-} from "@qor5/fetch-middleware";
+} from "@theplant/fetch-middleware";
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 
@@ -136,7 +136,7 @@ try {
 Parses JSON responses and attaches to `_body` property:
 
 ```typescript
-import { jsonResponseMiddleware } from "@qor5/fetch-middleware";
+import { jsonResponseMiddleware } from "@theplant/fetch-middleware";
 
 const middleware = jsonResponseMiddleware();
 
@@ -154,7 +154,7 @@ import {
   createFetchClient,
   jsonResponseMiddleware,
   extractBodyMiddleware,
-} from "@qor5/fetch-middleware";
+} from "@theplant/fetch-middleware";
 
 const client = createFetchClient({
   baseUrl: "https://api.example.com",
@@ -174,7 +174,7 @@ console.log(data); // { users: [...] }
 Handles Protobuf (ProTTP) and JSON (Connect) error responses. For Proto errors, it parses the protobuf ValidationError and throws typed errors. For JSON errors, it lets connect-es handle the error parsing:
 
 ```typescript
-import { formatProtoErrorMiddleware } from "@qor5/fetch-middleware";
+import { formatProtoErrorMiddleware } from "@theplant/fetch-middleware";
 
 const middleware = formatProtoErrorMiddleware();
 
@@ -192,7 +192,7 @@ const middleware = formatProtoErrorMiddleware();
 Handles HTTP errors with a simple callback. The middleware automatically parses error response body based on content-type:
 
 ```typescript
-import { httpErrorMiddleware } from "@qor5/fetch-middleware";
+import { httpErrorMiddleware } from "@theplant/fetch-middleware";
 import { toast } from "./toast";
 
 const middleware = httpErrorMiddleware({
@@ -242,7 +242,7 @@ const middleware = httpErrorMiddleware({
 Add or modify request headers:
 
 ```typescript
-import { headersMiddleware } from "@qor5/fetch-middleware";
+import { headersMiddleware } from "@theplant/fetch-middleware";
 
 const middleware = headersMiddleware((headers) => {
   headers.set("Authorization", "Bearer token");
@@ -257,7 +257,7 @@ const middleware = headersMiddleware((headers) => {
 Parse ConnectError into structured error information. Works with both Proto (ProTTP) and JSON (Connect) errors:
 
 ```typescript
-import { parseConnectError } from "@qor5/fetch-middleware";
+import { parseConnectError } from "@theplant/fetch-middleware";
 
 try {
   await client.login(credentials);
@@ -288,7 +288,7 @@ import {
   ValidationError,
   ServiceError,
   AppError,
-} from "@qor5/fetch-middleware";
+} from "@theplant/fetch-middleware";
 
 try {
   await fetchData();
@@ -314,7 +314,7 @@ import {
   extractBodyMiddleware,
   httpErrorMiddleware,
   headersMiddleware,
-} from "@qor5/fetch-middleware";
+} from "@theplant/fetch-middleware";
 
 const client = createFetchClient({
   baseUrl: "https://api.example.com",
@@ -346,7 +346,7 @@ const client = createFetchClient({
 ### Creating Custom Middleware
 
 ```typescript
-import type { Middleware } from "@qor5/fetch-middleware";
+import type { Middleware } from "@theplant/fetch-middleware";
 
 // Logging middleware
 const loggingMiddleware = (): Middleware => {
@@ -495,7 +495,7 @@ import {
   extractBodyMiddleware,
   httpErrorMiddleware,
   headersMiddleware,
-} from "@qor5/fetch-middleware";
+} from "@theplant/fetch-middleware";
 import { toast } from "@/lib/toast";
 
 const apiClient = createFetchClient({
@@ -558,7 +558,7 @@ import {
   createFetchClient,
   formatProtoErrorMiddleware,
   parseConnectError,
-} from "@qor5/fetch-middleware";
+} from "@theplant/fetch-middleware";
 import { createClient, type Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { AuthService } from "./proto/auth_pb";
@@ -643,7 +643,7 @@ import type {
   HttpErrorHandler,
   RestClient,
   FetchHandler,
-} from "@qor5/fetch-middleware";
+} from "@theplant/fetch-middleware";
 
 // Fully typed middleware
 const myMiddleware: Middleware = async (req, next, ctx) => {
