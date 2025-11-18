@@ -17,6 +17,10 @@ export interface ProtoGenConfig {
   outputDir: string;
   // Directory for service wrappers (optional)
   servicesDir?: string;
+  // Module name for multi-project organization (e.g., "pim", "ciam")
+  moduleName?: string;
+  // Root directory for RPC services (e.g., "src/lib/api/rpc-service")
+  rpcServiceDir?: string;
   // History file path
   historyFile?: string;
   // Maximum history records to keep

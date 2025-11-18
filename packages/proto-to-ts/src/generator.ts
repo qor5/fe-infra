@@ -31,8 +31,15 @@ export interface GeneratorOptions extends ProtoGenConfig {
 export async function generateFromProto(
   options: GeneratorOptions,
 ): Promise<void> {
-  const { targetPath, validation, workingDir, outputDir, servicesDir } =
-    options;
+  const {
+    targetPath,
+    validation,
+    workingDir,
+    outputDir,
+    servicesDir,
+    moduleName,
+    rpcServiceDir,
+  } = options;
 
   console.log("\n🔄 Starting API generation workflow...\n");
 
@@ -157,8 +164,58 @@ export async function generateFromProto(
           serviceFiles,
           resolvedOutputDir,
           resolvedServicesDir,
+          moduleName,
         );
       }
+    }
+
+    // Step 5: Generate RPC service structure if moduleName and rpcServiceDir are provided
+    if (moduleName && rpcServiceDir) {
+      console.log("\n📝 Step 5: Generating RPC service structure...");
+      const { generateConnectClientTemplate, generateRpcServiceIndexTemplate } =
+        await import("./templates/connect-client.template.js");
+
+      const resolvedRpcServiceDir = path.isAbsolute(rpcServiceDir)
+        ? rpcServiceDir
+        : path.join(workingDir, rpcServiceDir);
+
+      // Ensure rpc-service directory exists
+      if (!fs.existsSync(resolvedRpcServiceDir)) {
+        fs.mkdirSync(resolvedRpcServiceDir, { recursive: true });
+      }
+
+      // Generate shared connect-client.ts if it doesn't exist
+      const connectClientPath = path.join(
+        resolvedRpcServiceDir,
+        "connect-client.ts",
+      );
+      if (!fs.existsSync(connectClientPath)) {
+        fs.writeFileSync(connectClientPath, generateConnectClientTemplate());
+        console.log("   ✅ Generated shared connect-client.ts");
+      } else {
+        console.log("   ⏭️  Shared connect-client.ts already exists, skipping");
+      }
+
+      // Read existing modules from directory
+      const modules: string[] = [];
+      if (fs.existsSync(resolvedRpcServiceDir)) {
+        const items = fs.readdirSync(resolvedRpcServiceDir);
+        for (const item of items) {
+          const itemPath = path.join(resolvedRpcServiceDir, item);
+          if (
+            fs.statSync(itemPath).isDirectory() &&
+            fs.existsSync(path.join(itemPath, "services"))
+          ) {
+            modules.push(item);
+          }
+        }
+      }
+
+      // Generate top-level index.ts
+      const rpcIndexPath = path.join(resolvedRpcServiceDir, "index.ts");
+      fs.writeFileSync(rpcIndexPath, generateRpcServiceIndexTemplate(modules));
+      console.log(`   ✅ Generated index.ts (${modules.length} modules)`);
+      console.log(`   📦 Registered modules: ${modules.join(", ")}`);
     }
 
     console.log("\n✅ Complete API generation workflow finished!");

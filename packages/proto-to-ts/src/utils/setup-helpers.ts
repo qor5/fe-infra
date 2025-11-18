@@ -1,13 +1,9 @@
 /**
  * Setup helper functions for generating Connect client files
  */
-import fs from "node:fs";
-import path from "node:path";
-import {
-  generateConnectClientTemplate,
-  generateConnectErrorHandlerTemplate,
-  generateUtilsTemplate,
-} from "../templates/connect-client.template.js";
+import fs from "fs";
+import path from "path";
+import { generateConnectClientTemplate } from "../templates/connect-client.template.js";
 
 /**
  * Check if connect-client.ts already exists
@@ -31,24 +27,6 @@ export function generateConnectClientFiles(apiDir: string): void {
   const connectClientContent = generateConnectClientTemplate();
   fs.writeFileSync(connectClientPath, connectClientContent);
   console.log(`   ✅ Generated ${connectClientPath}`);
-
-  // Generate handlers directory
-  const handlersDir = path.join(apiDir, "handlers");
-  if (!fs.existsSync(handlersDir)) {
-    fs.mkdirSync(handlersDir, { recursive: true });
-  }
-
-  // Generate connect-error-handler.ts
-  const errorHandlerPath = path.join(handlersDir, "connect-error-handler.ts");
-  const errorHandlerContent = generateConnectErrorHandlerTemplate();
-  fs.writeFileSync(errorHandlerPath, errorHandlerContent);
-  console.log(`   ✅ Generated ${errorHandlerPath}`);
-
-  // Generate utils.ts
-  const utilsPath = path.join(handlersDir, "utils.ts");
-  const utilsContent = generateUtilsTemplate();
-  fs.writeFileSync(utilsPath, utilsContent);
-  console.log(`   ✅ Generated ${utilsPath}`);
 }
 
 /**
