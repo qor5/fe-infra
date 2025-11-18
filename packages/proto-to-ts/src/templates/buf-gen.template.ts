@@ -78,7 +78,7 @@ export function parseBufGenYaml(content: string): Partial<BufGenConfig> {
     // Extract inputs
     const inputsMatch = content.match(/inputs:\s*([\s\S]*?)(?=plugins:|$)/m);
     if (inputsMatch) {
-      const inputs = [];
+      const inputs: Array<{ directory?: string; module?: string }> = [];
       const dirMatches = inputsMatch[1].matchAll(/directory:\s*(\S+)/g);
       const moduleMatches = inputsMatch[1].matchAll(/module:\s*(\S+)/g);
 

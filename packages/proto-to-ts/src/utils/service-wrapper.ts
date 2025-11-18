@@ -3,7 +3,7 @@
  */
 import fs from "fs";
 import path from "path";
-import type { ServiceInfo } from "../types.js";
+import type { ServiceInfo } from "../types";
 
 /**
  * Extract service name from service file (v2 uses *_pb.ts with GenService)
