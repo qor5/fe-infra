@@ -17,16 +17,16 @@ A flexible and composable middleware system for `fetch` API with support for bot
 
 ```bash
 # Configure npm to use GitHub Packages (one-time setup)
-echo "@qor5:registry=https://npm.pkg.github.com" >> .npmrc
+echo "@theplant:registry=https://npm.pkg.github.com" >> .npmrc
 
 # Install the package
-pnpm add @qor5/fetch-middleware
+pnpm add @theplant/fetch-middleware
 ```
 
 ### From npm (if published)
 
 ```bash
-pnpm add @qor5/fetch-middleware
+pnpm add @theplant/fetch-middleware
 ```
 
 ## Core Concepts

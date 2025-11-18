@@ -1,5 +1,5 @@
 {
-  "name": "@qor5/fe-infra",
+  "name": "@theplant/qor5-fe-infra",
   "private": true,
   "version": "1.0.0",
   "description": "",
@@ -25,7 +25,7 @@
     "husky": "^8.0.0",
     "knip": "^5.62.0",
     "lint-staged": "^15.2.10",
-    "@qor5/fe-lint-kit": "workspace:*",
+    "@theplant/fe-lint-kit": "workspace:*",
     "@changesets/cli": "^2.27.9",
     "@changesets/changelog-github": "^0.5.0"
   }
