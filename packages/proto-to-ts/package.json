@@ -1,26 +1,26 @@
 {
   "name": "@theplant/proto-to-ts",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Interactive protobuf to TypeScript code generation tool with Connect-RPC support",
   "type": "module",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
     "proto-to-ts": "./bin/proto-to-ts.js"
   },
   "exports": {
     ".": {
-      "import": "./src/index.ts",
-      "require": "./src/index.ts",
-      "types": "./src/index.ts"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "pnpm run clean && pnpm run build"
   },
   "keywords": [
     "protobuf",
