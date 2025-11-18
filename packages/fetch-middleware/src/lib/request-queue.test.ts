@@ -1395,4 +1395,297 @@ describe("requestQueueMiddleware", () => {
       console.log("✅ Test passed: Extreme race condition handled correctly");
     });
   });
+
+  describe("Queue new requests during handler execution", () => {
+    it("should queue new requests that arrive while handler is executing (before next() is called)", async () => {
+      // This test verifies that new requests arriving during handler execution
+      // are queued and NOT sent until handler calls next()
+      const events: string[] = [];
+      let fetchCallCount = 0;
+      let handlerNextCallback: (() => void) | null = null;
+
+      const refreshSession = vi.fn().mockImplementation(async (next) => {
+        events.push("handler-start");
+        // Store next callback but DON'T call it yet
+        // This simulates handler doing async work (e.g., calling refresh API)
+        handlerNextCallback = next;
+        events.push("handler-waiting-for-external-trigger");
+        // Handler will wait for external trigger to call next()
+      });
+
+      const middleware = requestQueueMiddleware({
+        queueTrigger: ({ response }) => response.status === 401,
+        handler: refreshSession,
+      });
+
+      const handler = composeMiddlewares([middleware], {
+        fetcher: async (url, init) => {
+          fetchCallCount++;
+          const callNum = fetchCallCount;
+          const urlStr = typeof url === "string" ? url : url.toString();
+          const requestId = urlStr.split("/").pop() as string;
+
+          events.push(`${requestId}-fetch-${callNum}-start`);
+
+          // First call to reqA: return 401
+          if (requestId === "reqA" && callNum === 1) {
+            await waitFor(10);
+            events.push(`${requestId}-fetch-${callNum}-401`);
+            return createMockResponse(401);
+          }
+
+          // All retry calls: return 200
+          await waitFor(10);
+          events.push(`${requestId}-fetch-${callNum}-200`);
+          return createMockResponse(200, { data: requestId });
+        },
+      });
+
+      console.log("\n=== Testing new requests during handler execution ===");
+
+      // Step 1: Start reqA, which will trigger 401 and handler
+      const reqAPromise = handler(createMockRequest("/api/reqA"));
+
+      // Step 2: Wait for handler to start
+      await waitFor(50);
+      expect(events).toContain("handler-start");
+      expect(events).toContain("handler-waiting-for-external-trigger");
+
+      // Step 3: Now send reqB and reqC while handler is still executing (before next() is called)
+      events.push("sending-reqB-and-reqC-during-handler");
+      const reqBPromise = handler(createMockRequest("/api/reqB"));
+      const reqCPromise = handler(createMockRequest("/api/reqC"));
+
+      // Step 4: Wait a bit to ensure reqB and reqC are queued (not sent)
+      await waitFor(50);
+
+      // CRITICAL ASSERTION 1: reqB and reqC should NOT have been fetched yet
+      // They should be queued because isRefreshing = true
+      const reqBFetchedBeforeNext = events.some((e) =>
+        e.includes("reqB-fetch"),
+      );
+      const reqCFetchedBeforeNext = events.some((e) =>
+        e.includes("reqC-fetch"),
+      );
+
+      expect(
+        reqBFetchedBeforeNext,
+        "reqB should NOT be fetched before handler calls next()",
+      ).toBe(false);
+      expect(
+        reqCFetchedBeforeNext,
+        "reqC should NOT be fetched before handler calls next()",
+      ).toBe(false);
+
+      console.log("\n=== After reqB and reqC queued (before next()) ===");
+      console.log("Events:", events);
+      console.log("Total fetch calls:", fetchCallCount);
+
+      // Step 5: Now trigger handler to call next() (simulate refresh API completed)
+      events.push("calling-handler-next");
+      handlerNextCallback!();
+
+      // Step 6: Wait for all requests to complete
+      const [resultA, resultB, resultC] = await Promise.all([
+        reqAPromise,
+        reqBPromise,
+        reqCPromise,
+      ]);
+
+      console.log("\n=== Final Test Results ===");
+      console.log("Events:", events);
+      console.log("Total fetch calls:", fetchCallCount);
+      console.log("================\n");
+
+      // All 3 requests should succeed
+      expect(resultA.status).toBe(200);
+      expect(resultB.status).toBe(200);
+      expect(resultC.status).toBe(200);
+
+      // Handler should be called once
+      expect(refreshSession).toHaveBeenCalledTimes(1);
+
+      // Should have exactly 4 fetch calls:
+      // - Initial: reqA(401) = 1 call
+      // - Retry after next(): reqA, reqB, reqC = 3 calls
+      // Total = 4 calls
+      expect(fetchCallCount).toBe(4);
+
+      // CRITICAL ASSERTION 2: Verify event sequence
+      const handlerNextIndex = events.indexOf("calling-handler-next");
+      const reqBFetchIndex = events.findIndex((e) => e.includes("reqB-fetch"));
+      const reqCFetchIndex = events.findIndex((e) => e.includes("reqC-fetch"));
+
+      expect(
+        reqBFetchIndex > handlerNextIndex,
+        "reqB should only be fetched AFTER handler calls next()",
+      ).toBe(true);
+      expect(
+        reqCFetchIndex > handlerNextIndex,
+        "reqC should only be fetched AFTER handler calls next()",
+      ).toBe(true);
+
+      // Verify all requests were retried
+      expect(events).toContain("reqA-fetch-2-200");
+      expect(events).toContain("reqB-fetch-3-200");
+      expect(events).toContain("reqC-fetch-4-200");
+
+      console.log(
+        "✅ Test passed: New requests during handler execution are properly queued",
+      );
+    });
+
+    it("should handle real-world scenario: 5 initial requests + requests during refresh + nested 401 triggers", async () => {
+      // This test simulates the exact scenario from the user's log:
+      // 1. 5 concurrent requests start
+      // 2. First request returns 401, triggers queue
+      // 3. During refresh, new requests arrive and are queued
+      // 4. Some retry requests might trigger queue again
+      const events: string[] = [];
+      let fetchCallCount = 0;
+      let refreshCount = 0;
+
+      const refreshSession = vi.fn().mockImplementation(async (next) => {
+        refreshCount++;
+        events.push(`refresh-${refreshCount}-start`);
+        await waitFor(100); // Simulate real refresh token API call
+        events.push(`refresh-${refreshCount}-end`);
+        next();
+      });
+
+      const middleware = requestQueueMiddleware({
+        queueTrigger: ({ response }) => response.status === 401,
+        handler: refreshSession,
+        maxRetries: 2, // Prevent infinite loops
+        debug: false,
+      });
+
+      const handler = composeMiddlewares([middleware], {
+        fetcher: async (url, init) => {
+          fetchCallCount++;
+          const callNum = fetchCallCount;
+          const urlStr = typeof url === "string" ? url : url.toString();
+          const requestId = urlStr.split("/").pop() as string;
+          const signal = (init as any)?.signal;
+
+          events.push(`${requestId}-fetch-${callNum}`);
+
+          // Check if signal is aborted
+          if (signal?.aborted) {
+            events.push(`${requestId}-fetch-${callNum}-aborted-signal`);
+            throw new DOMException(
+              "signal is aborted without reason",
+              "AbortError",
+            );
+          }
+
+          // First call to GetBalance: return 401
+          if (requestId === "GetBalance" && callNum === 1) {
+            await waitFor(20);
+            events.push(`${requestId}-fetch-${callNum}-401`);
+            return createMockResponse(401);
+          }
+
+          // First calls to other initial requests: will be canceled
+          if (
+            (requestId === "GetSetting" ||
+              requestId === "GetIdentity" ||
+              requestId === "orders1" ||
+              requestId === "orders2") &&
+            callNum <= 5
+          ) {
+            // Simulate slow request that will be canceled
+            await new Promise((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                events.push(`${requestId}-fetch-${callNum}-completed`);
+                resolve(null);
+              }, 200);
+
+              signal?.addEventListener("abort", () => {
+                clearTimeout(timeout);
+                events.push(`${requestId}-fetch-${callNum}-canceled`);
+                reject(new DOMException("Request canceled", "AbortError"));
+              });
+            });
+
+            return createMockResponse(200, { data: requestId });
+          }
+
+          // All retry calls: return 200
+          await waitFor(10);
+          events.push(`${requestId}-fetch-${callNum}-200`);
+          return createMockResponse(200, { data: requestId });
+        },
+      });
+
+      console.log(
+        "\n=== Testing real-world scenario: 5 initial + requests during refresh ===",
+      );
+
+      // Step 1: Start 5 initial concurrent requests
+      const initialPromises = [
+        handler(createMockRequest("/api/GetBalance")),
+        handler(createMockRequest("/api/GetSetting")),
+        handler(createMockRequest("/api/GetIdentity")),
+        handler(createMockRequest("/api/orders1")),
+        handler(createMockRequest("/api/orders2")),
+      ];
+
+      // Step 2: Wait for 401 to trigger and handler to start
+      await waitFor(50);
+
+      // Step 3: During refresh, simulate new requests arriving (e.g., from React components)
+      // This is what happens in real-world: when requests are aborted, React might retry them
+      events.push("=== NEW REQUESTS DURING REFRESH ===");
+      const newRequestsDuringRefresh = [
+        handler(createMockRequest("/api/GetBalance")),
+        handler(createMockRequest("/api/GetSetting")),
+        handler(createMockRequest("/api/GetIdentity")),
+        handler(createMockRequest("/api/GetTransactions")),
+      ];
+
+      // Step 4: Wait for all requests to complete
+      const allResults = await Promise.all([
+        ...initialPromises,
+        ...newRequestsDuringRefresh,
+      ]);
+
+      console.log("\n=== Test Results ===");
+      console.log("Events:", events);
+      console.log("Total fetch calls:", fetchCallCount);
+      console.log("Refresh calls:", refreshCount);
+      console.log("================\n");
+
+      // All 9 requests should succeed (5 initial + 4 new)
+      allResults.forEach((result, i) => {
+        expect(result.status).toBe(200);
+      });
+
+      // Refresh should be called at least once, possibly twice if new requests also triggered
+      expect(refreshSession).toHaveBeenCalled();
+      expect(refreshCount).toBeGreaterThanOrEqual(1);
+      expect(refreshCount).toBeLessThanOrEqual(2);
+
+      console.log(
+        `✅ Test passed: Complex real-world scenario handled (${refreshCount} refresh cycles)`,
+      );
+
+      // Verify first request got 401
+      expect(events).toContain("GetBalance-fetch-1-401");
+
+      // Verify refresh happened
+      expect(events).toContain("refresh-1-start");
+      expect(events).toContain("refresh-1-end");
+
+      // Verify at least some initial requests were canceled
+      const canceledCount = events.filter((e) => e.includes("canceled")).length;
+      console.log(`Canceled requests: ${canceledCount}`);
+      expect(canceledCount).toBeGreaterThan(0);
+
+      // All requests should eventually complete with 200
+      const successCount = events.filter((e) => e.includes("-200")).length;
+      console.log(`Successful responses: ${successCount}`);
+      expect(successCount).toBeGreaterThanOrEqual(9);
+    });
+  });
 });

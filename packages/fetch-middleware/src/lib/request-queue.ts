@@ -481,6 +481,8 @@ export function requestQueueMiddleware(
     debug(`Processing queue: ${queue.length} requests, success=${success}`);
 
     if (success) {
+      let needRefresh = false; // Track if any retry triggers queueTrigger
+
       for (const item of queue) {
         try {
           debug(`Retrying request: ${item.request.url}`);
@@ -515,6 +517,7 @@ export function requestQueueMiddleware(
                 ...item,
                 request: requestWithRetryCount,
               });
+              needRefresh = true; // Mark that we need another refresh
             }
           } else {
             item.resolve(response);
@@ -527,24 +530,36 @@ export function requestQueueMiddleware(
         }
       }
 
-      // Recursive processing if retry triggered again
+      // Check if there are new requests in queue
+      // These could be from two sources:
+      // 1. Requests that triggered queueTrigger again (needRefresh = true)
+      // 2. New requests that arrived during processQueue (needRefresh = false)
       if (configState.requestQueue.length > 0) {
-        debug(
-          `Retry triggered queue again (${configState.requestQueue.length} requests), starting refresh...`,
-        );
-        configState.refreshPromise = startRefreshHandler(configState);
-
-        try {
-          await configState.refreshPromise;
+        if (needRefresh) {
+          // Case 1: Retry triggered queueTrigger again - need to call handler
           debug(
-            `Refresh success, replaying ${configState.requestQueue.length} requests`,
+            `Retry triggered queue again (${configState.requestQueue.length} requests), starting refresh...`,
+          );
+          configState.refreshPromise = startRefreshHandler(configState);
+
+          try {
+            await configState.refreshPromise;
+            debug(
+              `Refresh success, replaying ${configState.requestQueue.length} requests`,
+            );
+            await processQueue(configState, true);
+          } catch (error) {
+            debug(
+              `Refresh failed, rejecting ${configState.requestQueue.length} requests`,
+            );
+            await processQueue(configState, false, error);
+          }
+        } else {
+          // Case 2: New requests arrived during processQueue - directly retry without calling handler
+          debug(
+            `New requests arrived during processQueue (${configState.requestQueue.length} requests), retrying directly...`,
           );
           await processQueue(configState, true);
-        } catch (error) {
-          debug(
-            `Refresh failed, rejecting ${configState.requestQueue.length} requests`,
-          );
-          await processQueue(configState, false, error);
         }
       }
     } else {
