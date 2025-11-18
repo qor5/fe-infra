@@ -1,0 +1,89 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "packages/**"
+      - ".github/workflows/test.yml"
+      - "pnpm-lock.yaml"
+      - "package.json"
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: write
+
+jobs:
+  test-fetch-middleware:
+    name: Test Fetch Middleware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm i -w --frozen-lockfile
+
+      - name: Run tests
+        run: cd packages/fetch-middleware && pnpm test
+
+      - name: Run test coverage
+        run: cd packages/fetch-middleware && pnpm test:coverage
+
+      - name: Type check
+        run: cd packages/fetch-middleware && pnpm typecheck
+
+      - name: Build package
+        run: cd packages/fetch-middleware && pnpm build
+
+      - name: Upload coverage reports
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/fetch-middleware/coverage/coverage-final.json
+          flags: fetch-middleware
+          name: fetch-middleware-coverage
+          fail_ci_if_error: false
+
+      - name: Comment PR with test results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const testStatus = '${{ job.status }}';
+            const emoji = testStatus === 'success' ? '✅' : '❌';
+            const message = `${emoji} Fetch Middleware Tests ${testStatus === 'success' ? 'Passed' : 'Failed'}`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ${message}\n\n[View test results](${context.payload.pull_request.html_url}/checks)`
+            });
+

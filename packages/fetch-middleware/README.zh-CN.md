@@ -1,60 +1,60 @@
 # Fetch Middleware
 
-A flexible and composable middleware system for `fetch` API with support for both REST and Connect-RPC.
+一个灵活且可组合的 `fetch` API 中间件系统，支持 REST 和 Connect-RPC。
 
-## Features
+## 特性
 
-- 🎯 **Middleware Chain**: Compose multiple middlewares for request/response processing
-- 🔄 **Native Response**: Keeps the original Response object intact, only adds properties
-- ⚡ **Type-safe**: Full TypeScript support with full generics support
-- 🎨 **Flexible**: Easy to customize and extend
-- 🔌 **Connect-RPC Ready**: Built-in support for Connect-RPC and Protobuf errors
-- 🚀 **Minimal Dependencies**: Lightweight implementation
+- 🎯 **中间件链**：组合多个中间件进行请求/响应处理
+- 🔄 **原生 Response**：保持原始 Response 对象完整，仅添加属性
+- ⚡ **类型安全**：完整的 TypeScript 支持，全泛型支持
+- 🎨 **灵活**：易于自定义和扩展
+- 🔌 **Connect-RPC 就绪**：内置对 Connect-RPC 和 Protobuf 错误的支持
+- 🚀 **最小依赖**：轻量级实现
 
-## Installation
+## 安装
 
-### From GitHub Packages
+### 从 GitHub Packages 安装
 
 ```bash
-# Configure npm to use GitHub Packages (one-time setup)
+# 配置 npm 使用 GitHub Packages（一次性设置）
 echo "@qor5:registry=https://npm.pkg.github.com" >> .npmrc
 
-# Install the package
+# 安装包
 pnpm add @qor5/fetch-middleware
 ```
 
-### From npm (if published)
+### 从 npm 安装（如果已发布）
 
 ```bash
 pnpm add @qor5/fetch-middleware
 ```
 
-## Core Concepts
+## 核心概念
 
-### Middleware
+### 中间件
 
-A middleware is a function that intercepts requests and responses:
+中间件是一个拦截请求和响应的函数：
 
 ```typescript
 import type { Middleware } from "@theplant/fetch-middleware";
 
 const myMiddleware: Middleware = async (req, next, ctx) => {
-  // Before request
+  // 请求前
   console.log("Request:", req.url);
 
-  // Call next middleware
+  // 调用下一个中间件
   const res = await next(req);
 
-  // After response
+  // 响应后
   console.log("Response:", res.status);
 
   return res;
 };
 ```
 
-### Quick Start
+### 快速开始
 
-#### REST Client
+#### REST 客户端
 
 ```typescript
 import {
@@ -64,25 +64,25 @@ import {
   httpErrorMiddleware,
 } from "@theplant/fetch-middleware";
 
-// Create a REST client
+// 创建 REST 客户端
 const client = createFetchClient({
   baseUrl: "https://api.example.com",
   fetchInit: {
     credentials: "include",
   },
   middlewares: [
-    extractBodyMiddleware(), // Extract _body as final result
-    jsonResponseMiddleware(), // Parse JSON and attach to _body
-    httpErrorMiddleware(), // Handle HTTP errors
+    extractBodyMiddleware(), // 提取 _body 作为最终结果
+    jsonResponseMiddleware(), // 解析 JSON 并附加到 _body
+    httpErrorMiddleware(), // 处理 HTTP 错误
   ],
 });
 
-// Use the client
+// 使用客户端
 const users = await client.get<User[]>("/users");
 const user = await client.post<User>("/users", { name: "John" });
 ```
 
-#### Connect-RPC Client
+#### Connect-RPC 客户端
 
 ```typescript
 import {
@@ -93,61 +93,61 @@ import {
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 
-// Use binary format (protobuf) instead of JSON
+// 使用二进制格式（protobuf）而不是 JSON
 const useBinaryFormat = false;
 
-// Create fetch client for Connect-RPC
+// 为 Connect-RPC 创建 fetch 客户端
 const fetchClient = createFetchClient({
   fetchInit: {
     credentials: "include",
     headers: {
       Accept: useBinaryFormat ? "application/proto" : "application/json",
-      // Ensure server returns Connect standard error format with Details
+      // 确保服务器返回带有 Details 的 Connect 标准错误格式
       "X-Ensure-Connect-Error": "true",
     },
   },
   middlewares: [formatProtoErrorMiddleware()],
 });
 
-// Create Connect transport with the fetch client
+// 使用 fetch 客户端创建 Connect transport
 const transport = createConnectTransport({
   baseUrl: "http://localhost:8787",
   useBinaryFormat,
-  fetch: fetchClient, // Pass as fetch handler
+  fetch: fetchClient, // 作为 fetch 处理器传递
 });
 
-// Create RPC client
+// 创建 RPC 客户端
 const client = createClient(YourService, transport);
 
-// Handle errors
+// 处理错误
 try {
   await client.login(credentials);
 } catch (err) {
   const parsed = parseConnectError(err);
-  console.log(parsed.code); // Connect error code
-  console.log(parsed.validationError); // ValidationError details
+  console.log(parsed.code); // Connect 错误代码
+  console.log(parsed.validationError); // ValidationError 详情
 }
 ```
 
-## Built-in Middlewares
+## 内置中间件
 
 ### jsonResponseMiddleware
 
-Parses JSON responses and attaches to `_body` property:
+解析 JSON 响应并附加到 `_body` 属性：
 
 ```typescript
 import { jsonResponseMiddleware } from "@theplant/fetch-middleware";
 
 const middleware = jsonResponseMiddleware();
 
-// Response will have _body property with parsed JSON
+// Response 将具有 _body 属性，包含解析的 JSON
 const res = await fetch("/api/data");
-console.log(res._body); // Parsed JSON data
+console.log(res._body); // 解析的 JSON 数据
 ```
 
 ### extractBodyMiddleware
 
-Extracts `_body` from Response and returns it as the final result. Use this for REST clients:
+从 Response 中提取 `_body` 并将其作为最终结果返回。用于 REST 客户端：
 
 ```typescript
 import {
@@ -159,87 +159,87 @@ import {
 const client = createFetchClient({
   baseUrl: "https://api.example.com",
   middlewares: [
-    extractBodyMiddleware(), // Extract _body as final result
-    jsonResponseMiddleware(), // Parse JSON and attach to _body
+    extractBodyMiddleware(), // 提取 _body 作为最终结果
+    jsonResponseMiddleware(), // 解析 JSON 并附加到 _body
   ],
 });
 
-// Returns parsed data directly (not Response object)
+// 直接返回解析的数据（而不是 Response 对象）
 const data = await client.get("/users");
 console.log(data); // { users: [...] }
 ```
 
 ### formatProtoErrorMiddleware
 
-Handles Protobuf (ProTTP) and JSON (Connect) error responses. For Proto errors, it parses the protobuf ValidationError and throws typed errors. For JSON errors, it lets connect-es handle the error parsing:
+处理 Protobuf（ProTTP）和 JSON（Connect）错误响应。对于 Proto 错误，它解析 protobuf ValidationError 并抛出类型化错误。对于 JSON 错误，它让 connect-es 处理错误解析：
 
 ```typescript
 import { formatProtoErrorMiddleware } from "@theplant/fetch-middleware";
 
 const middleware = formatProtoErrorMiddleware();
 
-// Automatically throws typed errors:
+// 自动抛出类型化错误：
 // - UnauthorizedError (401)
 // - AuthenticationError (403)
 // - NotFoundError (404)
 // - ValidationError (422)
 // - ServiceError (500+)
-// - AppError (other errors)
+// - AppError (其他错误)
 ```
 
 ### httpErrorMiddleware
 
-Handles HTTP errors with a simple callback. The middleware automatically parses error response body based on content-type:
+使用简单的回调处理 HTTP 错误。中间件根据 content-type 自动解析错误响应体：
 
 ```typescript
 import { httpErrorMiddleware } from "@theplant/fetch-middleware";
 import { toast } from "./toast";
 
 const middleware = httpErrorMiddleware({
-  // URLs to skip error handling
+  // 跳过错误处理的 URL
   silentUrls: ["/api/refresh"],
 
-  // Error handler receives status, body (auto-parsed), and response
-  // Note: Handler is automatically skipped if request was aborted
+  // 错误处理器接收 status、body（自动解析）和 response
+  // 注意：如果请求被中止，处理器会自动跳过
   onError: async ({ status, body }) => {
-    // body is automatically parsed:
-    // - JSON responses → parsed object
-    // - Text responses → string
-    // - Other types → undefined
+    // body 自动解析：
+    // - JSON 响应 → 解析的对象
+    // - 文本响应 → 字符串
+    // - 其他类型 → undefined
     const message = body?.message || body?.error || "";
 
     switch (status) {
       case 401:
       case 419:
       case 440:
-        // Authentication errors
+        // 认证错误
         window.location.href = "/login";
-        toast.error("Please log in");
+        toast.error("请登录");
         break;
 
       case 500:
       case 502:
       case 503:
-        // Server errors
-        toast.error(message || "Server error");
+        // 服务器错误
+        toast.error(message || "服务器错误");
         break;
 
       default:
-        // Other errors
+        // 其他错误
         if (status >= 400) {
-          toast.error(message || `Error ${status}`);
+          toast.error(message || `错误 ${status}`);
         }
     }
   },
 
-  // Whether to throw error after handling (default: true)
+  // 处理后是否抛出错误（默认：true）
   throwError: true,
 });
 ```
 
 ### headersMiddleware
 
-Add or modify request headers:
+添加或修改请求头：
 
 ```typescript
 import { headersMiddleware } from "@theplant/fetch-middleware";
@@ -252,31 +252,31 @@ const middleware = headersMiddleware((headers) => {
 
 ### requestQueueMiddleware
 
-Manages request queues for handling authentication refresh and automatic retry. Supports single or multiple queue configurations with **INDEPENDENT QUEUES**. Each config maintains its own queue state to avoid conflicts.
+管理请求队列以处理认证刷新和自动重试。支持单个或多个队列配置，具有**独立队列**。每个配置维护自己的队列状态以避免冲突。
 
-When a response matches the trigger condition (e.g., 401 unauthorized), this middleware:
+当响应匹配触发条件时（例如 401 未授权），此中间件：
 
-1. Cancels all other pending requests that match **THE SAME config**
-2. Adds them to **THE CONFIG'S independent queue** while keeping their promises pending
-3. Calls the config's `next()` callback (e.g., to refresh session)
-4. If `next()` resolves: retries all requests in **THIS config's queue**
-5. If `next()` rejects: rejects all requests in **THIS config's queue** with error
+1. 取消所有匹配**相同配置**的其他待处理请求
+2. 将它们添加到**该配置的独立队列**，同时保持其 promise 处于待处理状态
+3. 调用配置的 `next()` 回调（例如刷新会话）
+4. 如果 `next()` resolve：重试**此配置队列**中的所有请求
+5. 如果 `next()` reject：拒绝**此配置队列**中的所有请求并返回错误
 
-**IMPORTANT**: Multiple configs with overlapping matchRule will NOT interfere with each other. Each config processes its own queue independently.
+**重要**：具有重叠 matchRule 的多个配置不会相互干扰。每个配置独立处理其自己的队列。
 
-**Basic usage (single configuration):**
+**基本用法（单个配置）：**
 
 ```typescript
 import { requestQueueMiddleware } from "@theplant/fetch-middleware";
 
 const middleware = requestQueueMiddleware({
-  // Determine if response should trigger queue management
+  // 确定响应是否应触发队列管理
   queueTrigger: ({ response, request, ctx }) => {
     return response.status === 401;
   },
-  // Callback to handle the trigger (e.g., refresh session)
-  // resolve = retry all queued requests
-  // reject = reject all queued requests
+  // 处理触发的回调（例如刷新会话）
+  // resolve = 重试所有排队的请求
+  // reject = 拒绝所有排队的请求
   next: async () => {
     await fetch("/api/auth/refresh", {
       method: "POST",
@@ -286,11 +286,11 @@ const middleware = requestQueueMiddleware({
 });
 ```
 
-**Multiple configurations (array):**
+**多个配置（数组）：**
 
 ```typescript
 const middleware = requestQueueMiddleware([
-  // Handle 401 - session expired
+  // 处理 401 - 会话过期
   {
     queueTrigger: ({ response }) => response.status === 401,
     next: async () => {
@@ -300,7 +300,7 @@ const middleware = requestQueueMiddleware([
       });
     },
   },
-  // Handle 403 with specific code - permission expired
+  // 处理带特定代码的 403 - 权限过期
   {
     queueTrigger: async ({ response }) => {
       if (response.status === 403) {
@@ -322,20 +322,20 @@ const middleware = requestQueueMiddleware([
   },
 ]);
 
-// SAFE: Even if a request matches BOTH configs
+// 安全：即使请求匹配两个配置
 fetchClient.get("/api/admin", {
   meta: { needAuth: true, needPermission: true },
 });
-// - If it returns 401, only config 1 triggers, only its queue is used
-// - If it returns 403, only config 2 triggers, only its queue is used
-// - Each config processes independently, NO interference
+// - 如果返回 401，仅配置 1 触发，仅使用其队列
+// - 如果返回 403，仅配置 2 触发，仅使用其队列
+// - 每个配置独立处理，无干扰
 ```
 
-**With metadata filtering (matchRule):**
+**使用元数据过滤（matchRule）：**
 
 ```typescript
 const middleware = requestQueueMiddleware({
-  // Only manage requests with needAuth: true
+  // 仅管理带有 needAuth: true 的请求
   matchRule: ({ meta }) => meta?.needAuth === true,
   queueTrigger: ({ response }) => response.status === 401,
   next: async () => {
@@ -346,30 +346,30 @@ const middleware = requestQueueMiddleware({
   },
 });
 
-// Usage in API calls
+// 在 API 调用中使用
 const fetchClient = createFetchClient({
   middlewares: [extractBodyMiddleware(), jsonResponseMiddleware(), middleware],
 });
 
-// This request will be managed by queue (needAuth: true)
+// 此请求将由队列管理（needAuth: true）
 const user = await fetchClient.get("/api/user", {
   meta: { needAuth: true },
 });
 
-// This request will NOT be managed by queue (no needAuth)
+// 此请求不会由队列管理（无 needAuth）
 const publicData = await fetchClient.get("/api/public");
 
-// This request will NOT be managed by queue (needAuth: false)
+// 此请求不会由队列管理（needAuth: false）
 const config = await fetchClient.get("/api/config", {
   meta: { needAuth: false },
 });
 ```
 
-**Advanced filtering with URL pattern:**
+**使用 URL 模式的高级过滤：**
 
 ```typescript
 const middleware = requestQueueMiddleware({
-  // Only manage authenticated requests to /api/user/* endpoints
+  // 仅管理到 /api/user/* 端点的经过身份验证的请求
   matchRule: ({ request, meta }) => {
     return request.url.includes("/api/user") && meta?.needAuth === true;
   },
@@ -382,18 +382,18 @@ const middleware = requestQueueMiddleware({
   },
 });
 
-// Multiple conditions
+// 多个条件
 const middleware2 = requestQueueMiddleware({
   matchRule: ({ request, meta, ctx }) => {
-    // Match by URL pattern
+    // 按 URL 模式匹配
     const isApiEndpoint = request.url.startsWith("/api/");
-    // Match by metadata
+    // 按元数据匹配
     const requiresAuth = meta?.needAuth === true;
-    // Match by method
+    // 按方法匹配
     const isModifying = ["POST", "PUT", "PATCH", "DELETE"].includes(
       request.method,
     );
-    // Combine conditions
+    // 组合条件
     return isApiEndpoint && requiresAuth && !ctx.signal.aborted;
   },
   queueTrigger: ({ response }) => response.status === 401,
@@ -406,16 +406,16 @@ const middleware2 = requestQueueMiddleware({
 });
 ```
 
-**Advanced usage with custom trigger logic:**
+**使用自定义触发逻辑的高级用法：**
 
 ```typescript
 const middleware = requestQueueMiddleware({
   queueTrigger: async ({ response, request }) => {
-    // Check status code
+    // 检查状态码
     if (response.status === 401) {
       return true;
     }
-    // Check response body
+    // 检查响应体
     if (response.status === 403) {
       try {
         const body = await response.clone().json();
@@ -432,87 +432,87 @@ const middleware = requestQueueMiddleware({
       credentials: "include",
     });
     if (!refreshResponse.ok) {
-      throw new Error("Failed to refresh session");
+      throw new Error("刷新会话失败");
     }
   },
 });
 ```
 
-**Execution flow example (concurrent requests):**
+**执行流程示例（并发请求）：**
 
 ```
-Scenario: 4 concurrent requests with 2 independent queue configs
+场景：4 个并发请求，2 个独立的队列配置
 
-T0: Requests A, B, C, D initiated simultaneously
+T0：同时发起请求 A、B、C、D
     |
-    ├─ A: sending... (needAuth + needPermission)
-    ├─ B: sending... (needAuth)
-    ├─ C: sending... (needPermission)
-    └─ D: sending... (no metadata)
+    ├─ A: 发送中... (needAuth + needPermission)
+    ├─ B: 发送中... (needAuth)
+    ├─ C: 发送中... (needPermission)
+    └─ D: 发送中... (无元数据)
 
-T1: Request A returns 401 first
+T1：请求 A 首先返回 401
     |
-    ├─ Detect 401, trigger configState0 (auth config)
+    ├─ 检测到 401，触发 configState0（认证配置）
     ├─ configState0.isRefreshing = true
-    ├─ Cancel request B (still pending, matches configState0)
-    ├─ Add A, B to configState0.requestQueue
-    └─ Call refreshSession() ← Called ONCE for all matched requests!
+    ├─ 取消请求 B（仍在待处理中，匹配 configState0）
+    ├─ 将 A、B 添加到 configState0.requestQueue
+    └─ 调用 refreshSession() ← 对所有匹配的请求仅调用一次！
 
-T2: Request B's cancel callback triggered
+T2：触发请求 B 的取消回调
     |
-    └─ Receives AbortError
-       └─ Check isAnyRefreshing → configState0.isRefreshing = true
-          └─ Don't reject, B is already in queue waiting for retry
+    └─ 收到 AbortError
+       └─ 检查 isAnyRefreshing → configState0.isRefreshing = true
+          └─ 不拒绝，B 已在队列中等待重试
 
-T3: refreshSession() completes successfully
+T3：refreshSession() 成功完成
     |
-    └─ processQueue(configState0, true) ← Process all queued requests
+    └─ processQueue(configState0, true) ← 处理所有排队的请求
        |
-       ├─ Retry request A (with original params)
-       ├─ Request A returns 200 → resolve A's promise ✅
-       ├─ Retry request B (with original params)
-       └─ Request B returns 200 → resolve B's promise ✅
+       ├─ 重试请求 A（使用原始参数）
+       ├─ 请求 A 返回 200 → resolve A 的 promise ✅
+       ├─ 重试请求 B（使用原始参数）
+       └─ 请求 B 返回 200 → resolve B 的 promise ✅
 
-T4: Request C returns 403
+T4：请求 C 返回 403
     |
-    ├─ Detect 403, trigger configState1 (permission config)
+    ├─ 检测到 403，触发 configState1（权限配置）
     ├─ configState1.isRefreshing = true
-    ├─ Add C to configState1.requestQueue
-    └─ Call refreshPermissions() ← Independent, called ONCE!
+    ├─ 将 C 添加到 configState1.requestQueue
+    └─ 调用 refreshPermissions() ← 独立，仅调用一次！
 
-T5: refreshPermissions() completes successfully
+T5：refreshPermissions() 成功完成
     |
     └─ processQueue(configState1, true)
        |
-       ├─ Retry request C
-       └─ Request C returns 200 → resolve C's promise ✅
+       ├─ 重试请求 C
+       └─ 请求 C 返回 200 → resolve C 的 promise ✅
 
-Final result:
-- refreshSession() called: 1 time (shared by A and B)
-- refreshPermissions() called: 1 time (for C only)
-- Request A: ✅ triggered 401 → queued → waited for refreshSession → retried
-- Request B: ✅ canceled → queued → waited for refreshSession → retried
-- Request C: ✅ triggered 403 → queued → waited for refreshPermissions → retried
-- Request D: ✅ completed directly (no queue management)
+最终结果：
+- refreshSession() 调用：1 次（A 和 B 共享）
+- refreshPermissions() 调用：1 次（仅用于 C）
+- 请求 A：✅ 触发 401 → 排队 → 等待 refreshSession → 重试
+- 请求 B：✅ 取消 → 排队 → 等待 refreshSession → 重试
+- 请求 C：✅ 触发 403 → 排队 → 等待 refreshPermissions → 重试
+- 请求 D：✅ 直接完成（无队列管理）
 ```
 
-**Key features:**
+**主要功能：**
 
-- Generic trigger condition based on response, request, context, or metadata
-- Supports single or multiple queue configurations
-- **Request metadata filtering**: Use `matchRule` to control which requests are managed by queue
-- **Custom metadata**: Pass `meta` in request options to tag requests (e.g., `needAuth`, `skipQueue`)
-- **Shared refresh**: Multiple requests matching the same config share ONE refresh callback
-- Automatic cancellation of pending requests
-- Promise queuing keeps original promises pending during refresh
-- Automatic retry with original parameters after successful refresh
-- Type-safe with full TypeScript support
+- 基于响应、请求、上下文或元数据的通用触发条件
+- 支持单个或多个队列配置
+- **请求元数据过滤**：使用 `matchRule` 控制哪些请求由队列管理
+- **自定义元数据**：在请求选项中传递 `meta` 以标记请求（例如 `needAuth`、`skipQueue`）
+- **共享刷新**：匹配相同配置的多个请求共享一个刷新回调
+- 自动取消待处理请求
+- Promise 队列在刷新期间保持原始 promise 待处理
+- 成功刷新后使用原始参数自动重试
+- 类型安全，完整的 TypeScript 支持
 
-## Error Handling
+## 错误处理
 
 ### parseConnectError
 
-Parse ConnectError into structured error information. Works with both Proto (ProTTP) and JSON (Connect) errors:
+将 ConnectError 解析为结构化错误信息。适用于 Proto（ProTTP）和 JSON（Connect）错误：
 
 ```typescript
 import { parseConnectError } from "@theplant/fetch-middleware";
@@ -522,21 +522,21 @@ try {
 } catch (err) {
   const parsed = parseConnectError(err);
 
-  // Access structured error information
-  console.log(parsed.code); // Connect error code (e.g., "invalid_argument")
-  console.log(parsed.message); // Error message
-  console.log(parsed.rawMessage); // Raw error message
-  console.log(parsed.localizedMessage); // Localized message (if available)
-  console.log(parsed.errorInfo); // ErrorInfo details
-  console.log(parsed.badRequest); // BadRequest details
-  console.log(parsed.validationError); // ValidationError with field errors
-  console.log(parsed.cause); // Original error cause
+  // 访问结构化错误信息
+  console.log(parsed.code); // Connect 错误代码（例如 "invalid_argument"）
+  console.log(parsed.message); // 错误消息
+  console.log(parsed.rawMessage); // 原始错误消息
+  console.log(parsed.localizedMessage); // 本地化消息（如果可用）
+  console.log(parsed.errorInfo); // ErrorInfo 详情
+  console.log(parsed.badRequest); // BadRequest 详情
+  console.log(parsed.validationError); // ValidationError 及字段错误
+  console.log(parsed.cause); // 原始错误原因
 }
 ```
 
-### Typed Error Classes
+### 类型化错误类
 
-The library provides typed error classes for common HTTP errors:
+该库为常见的 HTTP 错误提供类型化错误类：
 
 ```typescript
 import {
@@ -552,18 +552,18 @@ try {
   await fetchData();
 } catch (err) {
   if (err instanceof UnauthorizedError) {
-    // Handle 401 errors
-    console.log(err.errors); // ValidationError with details
+    // 处理 401 错误
+    console.log(err.errors); // ValidationError 及详情
   } else if (err instanceof ValidationError) {
-    // Handle 422 validation errors
-    console.log(err.errors.fieldErrors); // Field-specific errors
+    // 处理 422 验证错误
+    console.log(err.errors.fieldErrors); // 字段特定错误
   }
 }
 ```
 
-## Advanced Usage
+## 高级用法
 
-### Composing Middlewares
+### 组合中间件
 
 ```typescript
 import {
@@ -580,33 +580,33 @@ const client = createFetchClient({
     credentials: "include",
   },
   middlewares: [
-    // Add headers
+    // 添加请求头
     headersMiddleware((headers) => {
       headers.set("Accept", "application/json");
     }),
 
-    // Extract body (for REST API)
+    // 提取 body（用于 REST API）
     extractBodyMiddleware(),
 
-    // Parse JSON
+    // 解析 JSON
     jsonResponseMiddleware(),
 
-    // Handle errors with toast
+    // 使用 toast 处理错误
     httpErrorMiddleware({
       onError: ({ status, body }) => {
-        toast.error(body?.message || `Error ${status}`);
+        toast.error(body?.message || `错误 ${status}`);
       },
     }),
   ],
 });
 ```
 
-### Creating Custom Middleware
+### 创建自定义中间件
 
 ```typescript
 import type { Middleware } from "@theplant/fetch-middleware";
 
-// Logging middleware
+// 日志中间件
 const loggingMiddleware = (): Middleware => {
   return async (req, next, ctx) => {
     const start = Date.now();
@@ -625,7 +625,7 @@ const loggingMiddleware = (): Middleware => {
   };
 };
 
-// Auth middleware
+// 认证中间件
 const authMiddleware = (getToken: () => string): Middleware => {
   return async (req, next) => {
     const headers = new Headers(req.headers);
@@ -634,7 +634,7 @@ const authMiddleware = (getToken: () => string): Middleware => {
   };
 };
 
-// Retry middleware
+// 重试中间件
 const retryMiddleware = (maxRetries = 3): Middleware => {
   return async (req, next) => {
     let lastError;
@@ -653,98 +653,98 @@ const retryMiddleware = (maxRetries = 3): Middleware => {
 };
 ```
 
-### Middleware Order Matters
+### 中间件顺序很重要
 
-Middlewares are executed in order:
+中间件按顺序执行：
 
 ```typescript
 middlewares: [
-  loggingMiddleware(), // 1. Log request
-  authMiddleware(getToken), // 2. Add auth header
-  extractBodyMiddleware(), // 3. Extract body (REST only)
-  jsonResponseMiddleware(), // 4. Parse JSON
-  httpErrorMiddleware({}), // 5. Handle errors
+  loggingMiddleware(), // 1. 记录请求
+  authMiddleware(getToken), // 2. 添加认证头
+  extractBodyMiddleware(), // 3. 提取 body（仅 REST）
+  jsonResponseMiddleware(), // 4. 解析 JSON
+  httpErrorMiddleware({}), // 5. 处理错误
 ];
 ```
 
-The response flows in reverse order:
+响应以相反的顺序流动：
 
-1. `httpErrorMiddleware` handles errors first
-2. `jsonResponseMiddleware` parses JSON
-3. `extractBodyMiddleware` extracts body
-4. `authMiddleware` receives the result
-5. `loggingMiddleware` logs the response
+1. `httpErrorMiddleware` 首先处理错误
+2. `jsonResponseMiddleware` 解析 JSON
+3. `extractBodyMiddleware` 提取 body
+4. `authMiddleware` 接收结果
+5. `loggingMiddleware` 记录响应
 
-## Design Principles
+## 设计原则
 
-### Keep Response Native
+### 保持 Response 原生
 
-All middlewares should preserve the native `Response` object:
+所有中间件都应保留原生 `Response` 对象：
 
 ```typescript
-// ✅ Good: Add properties to Response
+// ✅ 好：向 Response 添加属性
 const middleware: Middleware = async (req, next) => {
   const res = await next(req);
   (res as any)._body = await res.clone().json();
-  return res; // Still a native Response
+  return res; // 仍然是原生 Response
 };
 
-// ❌ Bad: Return a new object
+// ❌ 坏：返回新对象
 const middleware: Middleware = async (req, next) => {
   const res = await next(req);
-  return { data: await res.json() }; // Lost native Response!
+  return { data: await res.json() }; // 丢失了原生 Response！
 };
 ```
 
-### Dual-Mode Support
+### 双模式支持
 
-The `createFetchClient` function returns a hybrid that works as both:
+`createFetchClient` 函数返回一个混合体，可同时作为：
 
-1. **Fetch Handler**: Can be passed to libraries like connect-es
-2. **REST Client**: Provides convenience methods (get, post, etc.)
+1. **Fetch 处理器**：可以传递给 connect-es 等库
+2. **REST 客户端**：提供便捷方法（get、post 等）
 
 ```typescript
 const client = createFetchClient({ middlewares: [...] });
 
-// As fetch handler (for connect-es)
+// 作为 fetch 处理器（用于 connect-es）
 const transport = createConnectTransport({ fetch: client });
 
-// As REST client
+// 作为 REST 客户端
 const data = await client.get('/api/users');
 ```
 
-### Error Information
+### 错误信息
 
-The `httpErrorMiddleware` provides essential error information:
+`httpErrorMiddleware` 提供基本错误信息：
 
 ```typescript
 interface HttpErrorInfo {
-  status: number; // HTTP status code (200, 401, 404, 500, etc.)
-  statusText: string; // HTTP status text
-  url: string; // Request URL
-  body?: any; // Auto-parsed response body (JSON object, text string, or undefined)
-  response: Response; // Native Response object
-  signal: AbortSignal; // Abort signal (for advanced use)
+  status: number; // HTTP 状态码（200、401、404、500 等）
+  statusText: string; // HTTP 状态文本
+  url: string; // 请求 URL
+  body?: any; // 自动解析的响应体（JSON 对象、文本字符串或 undefined）
+  response: Response; // 原生 Response 对象
+  signal: AbortSignal; // 中止信号（用于高级用途）
 }
 ```
 
-**Response Body Parsing:**
+**响应体解析：**
 
-- The middleware automatically parses error responses based on `content-type`:
-  - `application/json` → parsed as object
-  - `text/*` → returned as string
-  - Other types → `undefined`
-- Uses `response.clone()` to avoid consuming the original body
+- 中间件根据 `content-type` 自动解析错误响应：
+  - `application/json` → 解析为对象
+  - `text/*` → 作为字符串返回
+  - 其他类型 → `undefined`
+- 使用 `response.clone()` 以避免消耗原始 body
 
-**Usage Notes:**
+**使用说明：**
 
-- Use switch/case on `status` to handle different HTTP status codes
-- The error handler is automatically skipped if the request was aborted
-- The middleware is independent and doesn't require other middlewares
+- 使用 switch/case 根据 `status` 处理不同的 HTTP 状态码
+- 如果请求被中止，错误处理器会自动跳过
+- 中间件是独立的，不需要其他中间件
 
-## Complete Examples
+## 完整示例
 
-### REST API Client with Error Handling
+### 带错误处理的 REST API 客户端
 
 ```typescript
 import {
@@ -762,7 +762,7 @@ const apiClient = createFetchClient({
     credentials: "include",
   },
   middlewares: [
-    // Add headers
+    // 添加请求头
     headersMiddleware((headers) => {
       headers.set("Accept", "application/json");
       const token = localStorage.getItem("token");
@@ -771,22 +771,22 @@ const apiClient = createFetchClient({
       }
     }),
 
-    // Extract body as final result
+    // 提取 body 作为最终结果
     extractBodyMiddleware(),
 
-    // Parse JSON responses
+    // 解析 JSON 响应
     jsonResponseMiddleware(),
 
-    // Handle HTTP errors
+    // 处理 HTTP 错误
     httpErrorMiddleware({
       onError: async ({ status, body }) => {
-        const message = body?.message || `Error ${status}`;
+        const message = body?.message || `错误 ${status}`;
 
         if (status === 401) {
-          toast.error("Please log in");
+          toast.error("请登录");
           window.location.href = "/login";
         } else if (status >= 500) {
-          toast.error("Server error. Please try again later.");
+          toast.error("服务器错误，请稍后重试。");
         } else {
           toast.error(message);
         }
@@ -795,7 +795,7 @@ const apiClient = createFetchClient({
   ],
 });
 
-// Usage
+// 使用
 interface User {
   id: string;
   name: string;
@@ -809,7 +809,7 @@ const user = await apiClient.post<User>("/users", {
 });
 ```
 
-### Connect-RPC Client with Interceptors
+### 带拦截器的 Connect-RPC 客户端
 
 ```typescript
 import {
@@ -822,37 +822,37 @@ import { createConnectTransport } from "@connectrpc/connect-web";
 import { AuthService } from "./proto/auth_pb";
 import { toast } from "@/lib/toast";
 
-// Use binary format (protobuf) instead of JSON
+// 使用二进制格式（protobuf）而不是 JSON
 const useBinaryFormat = false;
 
-// Create fetch client with Proto error handling
+// 使用 Proto 错误处理创建 fetch 客户端
 const fetchClient = createFetchClient({
   fetchInit: {
     credentials: "include",
     headers: {
       Accept: useBinaryFormat ? "application/proto" : "application/json",
-      // Ensure server returns Connect standard error format with Details
+      // 确保服务器返回带有 Details 的 Connect 标准错误格式
       "X-Ensure-Connect-Error": "true",
     },
   },
   middlewares: [formatProtoErrorMiddleware()],
 });
 
-// Create error interceptor
+// 创建错误拦截器
 const errorInterceptor: Interceptor = (next) => async (req) => {
   try {
     return await next(req);
   } catch (err) {
     const parsed = parseConnectError(err);
 
-    // Log error details
+    // 记录错误详情
     console.error("[RPC Error]", {
       code: parsed.code,
       message: parsed.message,
       validationError: parsed.validationError,
     });
 
-    // Show user-friendly error
+    // 显示用户友好的错误
     if (parsed.validationError?.fieldErrors?.length) {
       const firstError = parsed.validationError.fieldErrors[0];
       toast.error(`${firstError.field}: ${firstError.description}`);
@@ -866,7 +866,7 @@ const errorInterceptor: Interceptor = (next) => async (req) => {
   }
 };
 
-// Create Connect transport
+// 创建 Connect transport
 const transport = createConnectTransport({
   baseUrl: "http://localhost:8787",
   useBinaryFormat,
@@ -874,25 +874,25 @@ const transport = createConnectTransport({
   interceptors: [errorInterceptor],
 });
 
-// Create RPC client
+// 创建 RPC 客户端
 const authClient = createClient(AuthService, transport);
 
-// Usage
+// 使用
 try {
   const response = await authClient.login({
     email: "user@example.com",
     password: "password123",
   });
-  console.log("Login successful:", response);
+  console.log("登录成功：", response);
 } catch (err) {
-  // Error already handled by interceptor
-  console.error("Login failed");
+  // 错误已由拦截器处理
+  console.error("登录失败");
 }
 ```
 
-## TypeScript Support
+## TypeScript 支持
 
-All functions are fully typed:
+所有函数都是完全类型化的：
 
 ```typescript
 import type {
@@ -903,22 +903,22 @@ import type {
   FetchHandler,
 } from "@theplant/fetch-middleware";
 
-// Fully typed middleware
+// 完全类型化的中间件
 const myMiddleware: Middleware = async (req, next, ctx) => {
   return await next(req);
 };
 
-// Fully typed error handler
+// 完全类型化的错误处理器
 const errorHandler: HttpErrorHandler = ({ status, body, signal }) => {
-  // All parameters are fully typed
+  // 所有参数都是完全类型化的
 };
 
-// Fully typed client
+// 完全类型化的客户端
 const client: RestClient = createFetchClient({
   middlewares: [myMiddleware],
 });
 ```
 
-## License
+## 许可证
 
 ISC

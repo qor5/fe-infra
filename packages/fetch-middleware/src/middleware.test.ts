@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { composeMiddlewares, type Middleware } from "./middleware";
-import { responseTransformMiddleware } from "./middleware.lib";
+import { responseTransformMiddleware } from "./lib/response-transform";
 
 describe("Middleware Onion Model", () => {
   let executionLog: string[];

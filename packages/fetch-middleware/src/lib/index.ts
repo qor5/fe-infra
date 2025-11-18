@@ -3,6 +3,7 @@ export * from "./http-error";
 
 // Request middlewares
 export * from "./headers";
+export * from "./request-queue";
 
 // Response middlewares
 export * from "./response-transform";

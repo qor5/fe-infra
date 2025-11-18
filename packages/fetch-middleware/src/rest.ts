@@ -22,6 +22,7 @@ export type RestClientOptions = {
 export type RestRequestOptions = {
   headers?: HeadersInit;
   query?: Record<string, string | number | boolean | undefined>;
+  meta?: Record<string, any>; // Custom metadata for middleware (e.g., needAuth: true)
 };
 
 /**
@@ -158,6 +159,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       url,
       method: "GET",
       headers: opts?.headers,
+      meta: opts?.meta,
     });
   };
 
@@ -171,6 +173,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       joinUrl(options.baseUrl, path),
       body,
       opts?.headers,
+      opts?.meta,
     );
     return run<T>(request);
   };
@@ -185,6 +188,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       joinUrl(options.baseUrl, path),
       body,
       opts?.headers,
+      opts?.meta,
     );
     return run<T>(request);
   };
@@ -199,6 +203,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       joinUrl(options.baseUrl, path),
       body,
       opts?.headers,
+      opts?.meta,
     );
     return run<T>(request);
   };
@@ -212,6 +217,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       joinUrl(options.baseUrl, path),
       null,
       opts?.headers,
+      opts?.meta,
     );
     return run<T>(request);
   };
@@ -260,6 +266,7 @@ function buildRequest(
   url: string,
   body: JsonLike | Uint8Array | FormData | null | undefined,
   headersInit?: HeadersInit,
+  meta?: Record<string, any>,
 ): Request {
   const headers = new Headers(headersInit);
   let payload: BodyInit | null = null;
@@ -285,5 +292,6 @@ function buildRequest(
     method,
     headers,
     body: payload,
+    meta,
   };
 }
