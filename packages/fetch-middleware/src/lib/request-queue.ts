@@ -6,31 +6,22 @@ import type {
   SuitContext,
 } from "../middleware";
 
-export interface MatchRuleInfo {
-  request: Request;
-  ctx: SuitContext;
-  meta?: Record<string, any>; // Custom metadata from request (e.g., needAuth, skipQueue, etc.)
-}
-
 export interface QueueTriggerInfo {
   response: SuitResponse;
   request: Request;
   ctx: SuitContext;
-  meta?: Record<string, any>; // Custom metadata from request (e.g., needAuth, skipQueue, etc.)
 }
 
 export interface RequestQueueOptions {
-  // Pre-filter: check request information before making the request
-  // Return true to enable queue management for this request
-  // Return false to skip queue management (request proceeds normally)
-  // If not provided, all requests are eligible for queue management
-  matchRule?: (info: MatchRuleInfo) => boolean;
   // Determine if the response should trigger queue management
+  // Return true to trigger queue management and retry this request
+  // Return false to skip queue management (request completes normally)
   queueTrigger: (info: QueueTriggerInfo) => boolean | Promise<boolean>;
   // Handler to process the queue trigger (e.g., refresh session)
-  // Call next() when ready to retry all queued requests
+  // Call next(true) to retry all queued requests after successful refresh
+  // Call next(false) to reject all queued requests, but resolve the first one with original error
   // If next() is never called, requests will be blocked forever
-  handler: (next: () => void) => void | Promise<void>;
+  handler: (next: (success: boolean) => void) => void | Promise<void>;
   // Maximum number of retries before giving up (default: 1)
   // This prevents infinite loops when refresh fails or retry still returns error
   maxRetries?: number;
@@ -45,156 +36,38 @@ interface QueueItem {
   reject: (error: Error) => void;
   next: Next;
   ctx: SuitContext;
-}
-
-interface ConfigState {
-  config: RequestQueueOptions;
-  isRefreshing: boolean;
-  requestQueue: QueueItem[];
-  refreshPromise: Promise<void> | null;
+  originalSignal?: AbortSignal;
 }
 
 interface PendingRequest extends QueueItem {
   id: symbol;
   internalController: AbortController;
-  matchedConfigStates?: ConfigState[]; // Which configs this request matches
   addedToQueue: boolean; // Track if already added to queue to prevent duplicates
 }
 
 /**
  * Request queue middleware for handling authentication refresh and request retry
  *
- * Supports single or multiple queue configurations with INDEPENDENT QUEUES.
- * Each config maintains its own queue state to avoid conflicts.
- *
- * When a response triggers the queue (e.g., 401 unauthorized):
- * 1. Cancels all other pending requests that match THE SAME config
- * 2. Adds them to THE CONFIG'S independent queue while keeping their promises pending
- * 3. Calls the config's next() callback (e.g., to refresh session)
- * 4. If next() resolves: retries all requests in THIS config's queue
- * 5. If next() rejects: rejects all requests in THIS config's queue with error
- *
- * IMPORTANT: Multiple configs with overlapping matchRule will NOT interfere with each other.
- * Each config processes its own queue independently.
- *
- * @example Single configuration
- * ```typescript
- * requestQueueMiddleware({
- *   queueTrigger: ({ response }) => response.status === 401,
- *   handler: async (next) => {
- *     await refreshSession();
- *     next(); // Call next to resume queue processing
- *   },
- *   maxRetries: 1, // Retry once, then give up
- *   debug: true, // Enable debug logging (default: false)
- * })
- * ```
- *
- * @example Multiple configurations
- * ```typescript
- * requestQueueMiddleware([
- *   {
- *     queueTrigger: ({ response }) => response.status === 401,
- *     handler: async (next) => {
- *       await refreshSession();
- *       next(); // Resume queue processing
- *     }
- *   },
- *   {
- *     queueTrigger: async ({ response }) => {
- *       if (response.status === 403) {
- *         const body = await response.clone().json();
- *         return body.code === 'PERMISSION_EXPIRED';
- *       }
- *       return false;
- *     },
- *     handler: async (next) => {
- *       await refreshPermissions();
- *       next(); // Resume queue processing
- *     }
- *   }
- * ])
- * ```
- *
- * @example With metadata filtering
- * ```typescript
- * requestQueueMiddleware({
- *   // Only manage requests with needAuth: true
- *   matchRule: ({ meta }) => meta?.needAuth === true,
- *   queueTrigger: ({ response }) => response.status === 401,
- *   handler: async (next) => {
- *     await refreshSession();
- *     next(); // Resume queue processing
- *   }
- * })
- *
- * // Usage:
- * fetchClient.get('/api/user', { meta: { needAuth: true } })  // Managed
- * fetchClient.get('/api/public')  // Not managed
- * ```
- *
- * @example Advanced filtering with URL pattern
- * ```typescript
- * requestQueueMiddleware({
- *   // Only manage requests to /api/user/* endpoints
- *   matchRule: ({ request, meta }) => {
- *     return request.url.includes('/api/user') && meta?.needAuth === true
- *   },
- *   queueTrigger: ({ response }) => response.status === 401,
- *   handler: async (next) => {
- *     await refreshSession();
- *     next(); // Resume queue processing
- *   }
- * })
- * ```
- *
- * @example Multiple configs with overlapping rules (SAFE - independent queues)
- * ```typescript
- * requestQueueMiddleware([
- *   {
- *     matchRule: ({ meta }) => meta?.needAuth === true,
- *     queueTrigger: ({ response }) => response.status === 401,
- *     handler: async (next) => {
- *       await refreshSession();
- *       next();
- *     }
- *   },
- *   {
- *     matchRule: ({ meta }) => meta?.needPermission === true,
- *     queueTrigger: ({ response }) => response.status === 403,
- *     handler: async (next) => {
- *       await refreshPermissions();
- *       next();
- *     }
- *   }
- * ])
- *
- * // Even if a request matches BOTH configs:
- * fetchClient.get('/api/admin', {
- *   meta: { needAuth: true, needPermission: true }
- * })
- * // - If it returns 401, only config 1 triggers, only its queue is used
- * // - If it returns 403, only config 2 triggers, only its queue is used
- * // - Each config processes independently, NO interference
- * ```
+ * When a response triggers the queue (determined by queueTrigger, e.g., 401 unauthorized):
+ * 1. Cancels all other pending requests
+ * 2. Adds them to the queue while keeping their promises pending
+ * 3. Calls the handler with next() callback (e.g., to refresh session)
+ * 4. If handler calls next(true): retries all requests in the queue
+ * 5. If handler calls next(false): rejects all requests in the queue
  */
 export function requestQueueMiddleware(
-  options: RequestQueueOptions | RequestQueueOptions[],
+  options: RequestQueueOptions,
 ): Middleware {
-  const configs = Array.isArray(options) ? options : [options];
+  const config = options;
   const REFRESH_START_DELAY_MS = 10; // Delay to catch concurrent 401 responses
 
-  const configStates: ConfigState[] = configs.map((config) => ({
-    config,
-    isRefreshing: false,
-    requestQueue: [],
-    refreshPromise: null,
-  }));
+  let isRefreshing = false;
+  const requestQueue: QueueItem[] = [];
+  let refreshPromise: Promise<boolean> | null = null;
 
   const pendingRequests = new Map<symbol, PendingRequest>();
-  const isDebugEnabled = configs.some((config) => config.debug === true);
   const debug = (...args: any[]) => {
-    if (isDebugEnabled) console.log("[RequestQueue]", ...args);
+    if (config.debug) console.log("[RequestQueue]", ...args);
   };
 
   const createFreshRequestContext = (
@@ -204,24 +77,23 @@ export function requestQueueMiddleware(
     const freshController = new AbortController();
     ctx.controller = freshController;
     ctx.signal = freshController.signal;
-    return { ...request, signal: undefined };
+    return { ...request, signal: ctx.signal };
   };
 
   const addToQueue = (
-    configState: ConfigState,
     request: Request,
     resolve: (response: SuitResponse) => void,
     reject: (error: Error) => void,
     next: Next,
     ctx: SuitContext,
   ) => {
-    configState.requestQueue.push({ request, resolve, reject, next, ctx });
+    requestQueue.push({ request, resolve, reject, next, ctx });
   };
 
-  const startRefreshHandler = (configState: ConfigState): Promise<void> => {
+  const startRefreshHandler = (): Promise<boolean> => {
     return new Promise((resolve, reject) => {
-      const next = () => resolve();
-      const result = configState.config.handler(next);
+      const next = (success: boolean) => resolve(success);
+      const result = config.handler(next);
       if (result instanceof Promise) result.catch(reject);
     });
   };
@@ -235,20 +107,12 @@ export function requestQueueMiddleware(
   };
 
   return async (request: Request, next: Next, ctx: SuitContext) => {
-    const matchedConfigStates = configStates.filter((state) => {
-      if (!state.config.matchRule) return true;
-      return state.config.matchRule({ request, ctx, meta: request.meta });
-    });
-
-    if (matchedConfigStates.length === 0) return next(request);
-
-    // If refresh in progress, queue immediately
-    const refreshingState = matchedConfigStates.find((s) => s.isRefreshing);
-    if (refreshingState) {
+    // If refreshing, queue immediately
+    if (isRefreshing) {
       debug(`Request starting during refresh, adding to queue: ${request.url}`);
       return new Promise<SuitResponse>((resolve, reject) => {
         const freshRequest = createFreshRequestContext(request, ctx);
-        addToQueue(refreshingState, freshRequest, resolve, reject, next, ctx);
+        addToQueue(freshRequest, resolve, reject, next, ctx);
       });
     }
 
@@ -264,7 +128,6 @@ export function requestQueueMiddleware(
         reject,
         next,
         ctx,
-        matchedConfigStates,
         addedToQueue: false,
       };
       pendingRequests.set(requestId, pendingRequest);
@@ -272,7 +135,7 @@ export function requestQueueMiddleware(
         `Request started, added to pending: ${request.url} (total pending: ${pendingRequests.size})`,
       );
 
-      // Link external abort signal (don't cancel if refreshing)
+      // Link external abort signal
       const originalSignal = request.signal;
       if (originalSignal?.aborted) {
         internalController.abort();
@@ -280,10 +143,7 @@ export function requestQueueMiddleware(
         originalSignal.addEventListener(
           "abort",
           () => {
-            const isAnyRefreshing = matchedConfigStates.some(
-              (s) => s.isRefreshing,
-            );
-            if (!isAnyRefreshing) internalController.abort();
+            internalController.abort();
           },
           { once: true },
         );
@@ -306,15 +166,11 @@ export function requestQueueMiddleware(
           }
 
           // Race condition guard: Check if refresh started while response was in-flight
-          const alreadyRefreshing = matchedConfigStates.find(
-            (s) => s.isRefreshing,
-          );
-          if (alreadyRefreshing) {
-            const shouldQueue = await alreadyRefreshing.config.queueTrigger({
+          if (isRefreshing) {
+            const shouldQueue = await config.queueTrigger({
               response,
               request,
               ctx,
-              meta: request.meta,
             });
 
             if (shouldQueue) {
@@ -323,36 +179,21 @@ export function requestQueueMiddleware(
               );
               pendingRequest.addedToQueue = true;
               const freshRequest = createFreshRequestContext(request, ctx);
-              addToQueue(
-                alreadyRefreshing,
-                freshRequest,
-                resolve,
-                reject,
-                next,
-                ctx,
-              );
+              addToQueue(freshRequest, resolve, reject, next, ctx);
               return;
             }
           }
 
           // Check if this response should trigger refresh
-          let triggeredConfigState: ConfigState | null = null;
-          for (const state of matchedConfigStates) {
-            const shouldTrigger = await state.config.queueTrigger({
-              response,
-              request,
-              ctx,
-              meta: request.meta,
-            });
-            if (shouldTrigger) {
-              triggeredConfigState = state;
-              break;
-            }
-          }
+          const shouldTrigger = await config.queueTrigger({
+            response,
+            request,
+            ctx,
+          });
 
-          if (triggeredConfigState && !triggeredConfigState.isRefreshing) {
+          if (shouldTrigger && !isRefreshing) {
             const retryCount = (request.meta?._retryCount as number) || 0;
-            const maxRetries = triggeredConfigState.config.maxRetries ?? 1;
+            const maxRetries = config.maxRetries ?? 1;
 
             if (retryCount >= maxRetries) {
               debug(
@@ -368,21 +209,19 @@ export function requestQueueMiddleware(
             );
 
             // Set flag first to catch other in-flight responses
-            triggeredConfigState.isRefreshing = true;
+            isRefreshing = true;
             await new Promise((resolve) =>
               setTimeout(resolve, REFRESH_START_DELAY_MS),
             );
 
-            // Collect and cancel matching pending requests
+            // Collect and cancel all pending requests
             const toQueue: PendingRequest[] = [];
             debug(`Scanning ${pendingRequests.size} pending requests...`);
             for (const pending of pendingRequests.values()) {
-              const matchesThisConfig =
-                pending.matchedConfigStates?.includes(triggeredConfigState);
               debug(
-                `  - ${pending.request.url}: matches=${matchesThisConfig}, addedToQueue=${pending.addedToQueue}`,
+                `  - ${pending.request.url}: addedToQueue=${pending.addedToQueue}`,
               );
-              if (matchesThisConfig && !pending.addedToQueue) {
+              if (!pending.addedToQueue) {
                 toQueue.push(pending);
                 pending.addedToQueue = true;
               }
@@ -398,57 +237,55 @@ export function requestQueueMiddleware(
               pending.internalController.abort();
             }
 
-            for (const pending of toQueue) {
+            // Prepend pending requests to requestQueue to maintain order
+            // (pending requests are older than requests arrived during the delay)
+            for (let i = toQueue.length - 1; i >= 0; i--) {
+              const pending = toQueue[i];
               debug(`Adding to retry queue: ${pending.request.url}`);
               const freshRequest = createFreshRequestContext(
                 pending.request,
                 pending.ctx,
               );
-              addToQueue(
-                triggeredConfigState,
-                freshRequest,
-                pending.resolve,
-                pending.reject,
-                pending.next,
-                pending.ctx,
-              );
+              requestQueue.unshift({
+                request: freshRequest,
+                resolve: pending.resolve,
+                reject: pending.reject,
+                next: pending.next,
+                ctx: pending.ctx,
+              });
             }
 
             // Execute refresh and process queue
             debug(`Starting refresh...`);
-            triggeredConfigState.refreshPromise =
-              startRefreshHandler(triggeredConfigState);
+            refreshPromise = startRefreshHandler();
 
             try {
-              await triggeredConfigState.refreshPromise;
-              debug(
-                `Refresh success, replaying ${triggeredConfigState.requestQueue.length} requests`,
-              );
-              await processQueue(triggeredConfigState, true);
+              const success = await refreshPromise;
+              if (success) {
+                debug(
+                  `Refresh success, replaying ${requestQueue.length} requests`,
+                );
+                await processQueue(true);
+              } else {
+                debug(
+                  `Refresh failed, resolving first request with error, rejecting others (${requestQueue.length} requests)`,
+                );
+                await processQueue(false);
+              }
             } catch (error) {
               debug(
-                `Refresh failed, rejecting ${triggeredConfigState.requestQueue.length} requests`,
+                `Handler error, resolving first request with error, rejecting others (${requestQueue.length} requests)`,
               );
-              await processQueue(triggeredConfigState, false, error);
+              await processQueue(false);
             } finally {
-              triggeredConfigState.isRefreshing = false;
-              triggeredConfigState.refreshPromise = null;
+              isRefreshing = false;
+              refreshPromise = null;
             }
-          } else if (
-            triggeredConfigState &&
-            triggeredConfigState.isRefreshing
-          ) {
+          } else if (isRefreshing) {
             debug(`Trigger during refresh, adding to queue: ${request.url}`);
             pendingRequest.addedToQueue = true;
             const freshRequest = createFreshRequestContext(request, ctx);
-            addToQueue(
-              triggeredConfigState,
-              freshRequest,
-              resolve,
-              reject,
-              next,
-              ctx,
-            );
+            addToQueue(freshRequest, resolve, reject, next, ctx);
           } else {
             pendingRequests.delete(requestId);
             debug(
@@ -470,101 +307,106 @@ export function requestQueueMiddleware(
     });
   };
 
-  async function processQueue(
-    configState: ConfigState,
-    success: boolean,
-    error?: unknown,
-  ) {
-    const queue = [...configState.requestQueue];
-    configState.requestQueue.length = 0;
+  async function processQueue(success: boolean) {
+    const queue = [...requestQueue];
+    requestQueue.length = 0;
 
     debug(`Processing queue: ${queue.length} requests, success=${success}`);
 
     if (success) {
       let needRefresh = false; // Track if any retry triggers queueTrigger
 
-      for (const item of queue) {
-        try {
-          debug(`Retrying request: ${item.request.url}`);
-          const requestWithRetryCount = incrementRetryCount(item.request);
-          const response = await item.next(requestWithRetryCount);
-          debug(
-            `Retry success: ${item.request.url}, status=${response.status}`,
-          );
+      // Process queue concurrently
+      await Promise.all(
+        queue.map(async (item) => {
+          try {
+            debug(`Retrying request: ${item.request.url}`);
+            const requestWithRetryCount = incrementRetryCount(item.request);
+            const response = await item.next(requestWithRetryCount);
+            debug(
+              `Retry success: ${item.request.url}, status=${response.status}`,
+            );
 
-          const shouldTriggerAgain = await configState.config.queueTrigger({
-            response,
-            request: requestWithRetryCount,
-            ctx: item.ctx,
-            meta: requestWithRetryCount.meta,
-          });
+            const shouldTriggerAgain = await config.queueTrigger({
+              response,
+              request: requestWithRetryCount,
+              ctx: item.ctx,
+            });
 
-          if (shouldTriggerAgain) {
-            const retryCount =
-              (requestWithRetryCount.meta?._retryCount as number) || 0;
-            const maxRetries = configState.config.maxRetries ?? 1;
+            if (shouldTriggerAgain) {
+              const retryCount =
+                (requestWithRetryCount.meta?._retryCount as number) || 0;
+              const maxRetries = config.maxRetries ?? 1;
 
-            if (retryCount >= maxRetries) {
-              debug(
-                `Max retries (${maxRetries}) reached for: ${item.request.url}, giving up`,
-              );
-              item.resolve(response);
+              if (retryCount >= maxRetries) {
+                debug(
+                  `Max retries (${maxRetries}) reached for: ${item.request.url}, giving up`,
+                );
+                item.resolve(response);
+              } else {
+                debug(
+                  `Retry still triggers queue for: ${item.request.url} (retry ${retryCount}/${maxRetries}), re-queueing`,
+                );
+                requestQueue.push({
+                  ...item,
+                  request: requestWithRetryCount,
+                });
+                needRefresh = true; // Mark that we need another refresh
+              }
             } else {
-              debug(
-                `Retry still triggers queue for: ${item.request.url} (retry ${retryCount}/${maxRetries}), re-queueing`,
-              );
-              configState.requestQueue.push({
-                ...item,
-                request: requestWithRetryCount,
-              });
-              needRefresh = true; // Mark that we need another refresh
+              item.resolve(response);
             }
-          } else {
-            item.resolve(response);
+          } catch (err) {
+            debug(
+              `Retry failed: ${item.request.url}, error=${(err as Error).message}`,
+            );
+            item.reject(err as Error);
           }
-        } catch (err) {
-          debug(
-            `Retry failed: ${item.request.url}, error=${(err as Error).message}`,
-          );
-          item.reject(err as Error);
-        }
-      }
+        }),
+      );
 
       // Check if there are new requests in queue
       // These could be from two sources:
       // 1. Requests that triggered queueTrigger again (needRefresh = true)
       // 2. New requests that arrived during processQueue (needRefresh = false)
-      if (configState.requestQueue.length > 0) {
+      if (requestQueue.length > 0) {
         if (needRefresh) {
           // Case 1: Retry triggered queueTrigger again - need to call handler
           debug(
-            `Retry triggered queue again (${configState.requestQueue.length} requests), starting refresh...`,
+            `Retry triggered queue again (${requestQueue.length} requests), starting refresh...`,
           );
-          configState.refreshPromise = startRefreshHandler(configState);
+          refreshPromise = startRefreshHandler();
 
           try {
-            await configState.refreshPromise;
-            debug(
-              `Refresh success, replaying ${configState.requestQueue.length} requests`,
-            );
-            await processQueue(configState, true);
+            const retrySuccess = await refreshPromise;
+            if (retrySuccess) {
+              debug(
+                `Refresh success, replaying ${requestQueue.length} requests`,
+              );
+              await processQueue(true);
+            } else {
+              debug(
+                `Refresh failed, resolving first request with error, rejecting others (${requestQueue.length} requests)`,
+              );
+              await processQueue(false);
+            }
           } catch (error) {
             debug(
-              `Refresh failed, rejecting ${configState.requestQueue.length} requests`,
+              `Handler error, resolving first request with error, rejecting others (${requestQueue.length} requests)`,
             );
-            await processQueue(configState, false, error);
+            await processQueue(false);
           }
         } else {
           // Case 2: New requests arrived during processQueue - directly retry without calling handler
           debug(
-            `New requests arrived during processQueue (${configState.requestQueue.length} requests), retrying directly...`,
+            `New requests arrived during processQueue (${requestQueue.length} requests), retrying directly...`,
           );
-          await processQueue(configState, true);
+          await processQueue(true);
         }
       }
     } else {
-      const errorToThrow =
-        error instanceof Error ? error : new Error("Queue processing failed");
+      // Refresh failed: reject all requests
+      const errorToThrow = new Error("Authentication refresh failed");
       for (const item of queue) {
         debug(`Rejecting request: ${item.request.url}`);
         item.reject(errorToThrow);
