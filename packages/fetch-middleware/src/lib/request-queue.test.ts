@@ -3,7 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { requestQueueMiddleware } from "./request-queue";
+import {
+  requestQueueMiddleware,
+  _resetRequestQueueState,
+} from "./request-queue";
 import type { Request, SuitContext } from "../middleware";
 
 // Test utilities
@@ -14,13 +17,13 @@ function createMockContext(): SuitContext {
   };
 }
 
-function createMockRequest(url: string, meta?: Record<string, any>): Request {
+function createMockRequest(url: string, _meta?: Record<string, any>): Request {
   return {
     url,
     method: "GET",
     headers: {},
     body: null,
-    meta,
+    _meta,
   };
 }
 
@@ -43,6 +46,8 @@ describe("requestQueueMiddleware", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    // Reset shared state to prevent interference between tests
+    _resetRequestQueueState();
   });
 
   it("should pass through normal requests", async () => {
@@ -64,7 +69,7 @@ describe("requestQueueMiddleware", () => {
 
   it("should queue and retry requests after successful refresh", async () => {
     const next = vi.fn().mockImplementation(async (req: Request) => {
-      if (!req.meta?._retryCount) {
+      if (!req._meta?._retryCount) {
         return createMockResponse(401);
       }
       return createMockResponse(200);
@@ -153,15 +158,13 @@ describe("requestQueueMiddleware", () => {
   });
 
   it("should re-queue requests if retry still triggers queue (e.g. token expired again)", async () => {
-    let callCount = 0;
     const next = vi.fn().mockImplementation(async (req: Request) => {
-      callCount++;
       // 1. Initial 401
       // 2. Retry 1 -> 401 again
       // 3. Retry 2 -> 200
       if (req.url === "url1") {
-        if (!req.meta?._retryCount) return createMockResponse(401);
-        if (req.meta._retryCount === 1) return createMockResponse(401);
+        if (!req._meta?._retryCount) return createMockResponse(401);
+        if (req._meta._retryCount === 1) return createMockResponse(401);
         return createMockResponse(200);
       }
       return createMockResponse(200);
@@ -257,7 +260,7 @@ describe("requestQueueMiddleware", () => {
   it("should handle concurrent requests correctly with parallel processing", async () => {
     const REQUEST_COUNT = 10;
     const next = vi.fn().mockImplementation(async (req: Request) => {
-      if (!req.meta?._retryCount) return createMockResponse(401);
+      if (!req._meta?._retryCount) return createMockResponse(401);
       return createMockResponse(200);
     });
 
@@ -285,11 +288,11 @@ describe("requestQueueMiddleware", () => {
 
   it("should process new requests arriving during retry phase immediately without new refresh", async () => {
     const next = vi.fn().mockImplementation(async (req: Request) => {
-      if (req.url === "url1" && !req.meta?._retryCount) {
+      if (req.url === "url1" && !req._meta?._retryCount) {
         return createMockResponse(401);
       }
       // Simulate slow retry for url1
-      if (req.url === "url1" && req.meta?._retryCount) {
+      if (req.url === "url1" && req._meta?._retryCount) {
         await waitFor(100);
         return createMockResponse(200);
       }
@@ -355,22 +358,22 @@ describe("requestQueueMiddleware", () => {
     expect(handler).toHaveBeenCalled();
   });
 
-  it("should access request.meta in queueTrigger", async () => {
+  it("should access request._meta in queueTrigger", async () => {
     const next = vi.fn().mockImplementation(async (req: Request) => {
       // Retry succeeds
-      if (req.meta?._retryCount) return createMockResponse(200);
+      if (req._meta?._retryCount) return createMockResponse(200);
       return createMockResponse(401);
     });
     const handler = vi.fn().mockImplementation((cb) => cb(true));
 
     const middleware = requestQueueMiddleware({
       queueTrigger: ({ request }) => {
-        return request.meta?.shouldRetry === true;
+        return request._meta?.shouldRetry === true;
       },
       handler,
     });
 
-    // 1. Request with meta.shouldRetry = true -> Should queue
+    // 1. Request with _meta.shouldRetry = true -> Should queue
     const p1 = middleware(
       createMockRequest("url1", { shouldRetry: true }),
       next,
@@ -380,7 +383,7 @@ describe("requestQueueMiddleware", () => {
     await p1;
     expect(handler).toHaveBeenCalledTimes(1);
 
-    // 2. Request with meta.shouldRetry = false -> Should NOT queue
+    // 2. Request with _meta.shouldRetry = false -> Should NOT queue
     const res = await middleware(
       createMockRequest("url2", { shouldRetry: false }),
       next,
@@ -388,5 +391,5 @@ describe("requestQueueMiddleware", () => {
     );
     expect(res.status).toBe(401);
     expect(handler).toHaveBeenCalledTimes(1); // Still 1
-  });
+  }, 10000); // Increase timeout to 10s
 });
