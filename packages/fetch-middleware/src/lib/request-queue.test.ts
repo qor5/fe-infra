@@ -224,6 +224,8 @@ describe("requestQueueMiddleware", () => {
 
     const ctx = createMockContext();
     const p = middleware(createMockRequest("url"), next, ctx);
+    // Attach expectation immediately to avoid Unhandled Rejection
+    const pExpect = expect(p).rejects.toThrow("Aborted");
 
     // Abort before refresh completes
     await waitFor(50);
@@ -231,7 +233,7 @@ describe("requestQueueMiddleware", () => {
 
     await waitFor(100);
 
-    await expect(p).rejects.toThrow("Aborted");
+    await pExpect;
   });
 
   it("should not queue if queueTrigger returns false", async () => {
