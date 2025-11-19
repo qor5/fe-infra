@@ -208,7 +208,7 @@ describe("requestQueueMiddleware", () => {
 
   it("should handle abort signal", async () => {
     const next = vi.fn().mockImplementation(async (req: Request) => {
-      if (req.signal?.aborted) throw new Error("Aborted");
+      if (req.signal?.aborted) return Promise.reject(new Error("Aborted"));
       return createMockResponse(401);
     });
 
