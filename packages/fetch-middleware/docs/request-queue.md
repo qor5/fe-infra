@@ -70,6 +70,8 @@ const middleware = requestQueueMiddleware({
 
 You can use `ignore` to prevent certain requests from being queued or canceled.
 
+#### REST Client with `_meta`
+
 ```typescript
 const middleware = requestQueueMiddleware({
   // Ignore requests that don't need auth
@@ -98,6 +100,123 @@ await fetchClient.get("/api/public", {
 ```
 
 > **Note**: The `_meta` property in `RestRequestOptions` is passed to the middleware but stripped before the request is sent to the network.
+
+#### Connect-RPC with Tag Session Middleware
+
+For Connect-RPC clients, you cannot pass `_meta` directly. Use [Tag Session Middleware](./tag-session.md) to automatically tag requests based on URL patterns:
+
+```typescript
+import {
+  createFetchClient,
+  tagSessionMiddleware,
+  requestQueueMiddleware,
+} from "@theplant/fetch-middleware";
+import { createConnectTransport } from "@connectrpc/connect-web";
+import { createClient } from "@connectrpc/connect";
+
+const fetchClient = createFetchClient({
+  middlewares: [
+    // 1. Queue middleware uses the tag to filter requests
+    requestQueueMiddleware({
+      ignore: (request) => !request._meta?.isProtected,
+      queueTrigger: ({ response }) => response.status === 401,
+      handler: async (next) => {
+        await refreshSession();
+        next(true);
+      },
+    }),
+
+    // 2. Tag protected endpoints (should be last)
+    tagSessionMiddleware(["/api.UserService/", "/api.AdminService/"], {
+      isProtected: true,
+    }),
+  ],
+});
+
+const transport = createConnectTransport({
+  baseUrl: "http://localhost:8787",
+  fetch: fetchClient,
+});
+
+const client = createClient(UserService, transport);
+```
+
+### Using Presets
+
+The library provides preset helpers for common authentication scenarios:
+
+#### `requestQueueAuthHandleCIAMPreset`
+
+For CIAM-based authentication with protected endpoint filtering:
+
+```typescript
+import {
+  requestQueueMiddleware,
+  requestQueueAuthHandleCIAMPreset,
+  tagSessionMiddleware,
+} from "@theplant/fetch-middleware";
+
+const fetchClient = createFetchClient({
+  middlewares: [
+    // Use CIAM preset
+    requestQueueMiddleware(
+      requestQueueAuthHandleCIAMPreset(
+        async (next) => {
+          try {
+            await ciamHandlers.refreshSession();
+            next(true);
+          } catch (error) {
+            next(false);
+          }
+        },
+        { getCIAMState: () => ciamHandlers.getState(), debug: true },
+      ),
+    ),
+  ],
+});
+```
+
+**Features:**
+
+- Triggers on 401 responses for protected requests (`request._meta.isProtected === true`)
+- Triggers on expired sessions (reads `session.expiresAt` from CIAM state)
+- Automatically ignores `/RefreshSession` endpoint to avoid deadlocks
+
+#### `requestQueueAuthHandlePreset`
+
+For simple 401-based authentication:
+
+```typescript
+import {
+  requestQueueMiddleware,
+  requestQueueAuthHandlePreset,
+} from "@theplant/fetch-middleware";
+
+const fetchClient = createFetchClient({
+  middlewares: [
+    requestQueueMiddleware(
+      requestQueueAuthHandlePreset(
+        async (next) => {
+          try {
+            await refreshSession();
+            next(true);
+          } catch (error) {
+            next(false);
+          }
+        },
+        { debug: true },
+      ),
+    ),
+  ],
+});
+```
+
+**Features:**
+
+- Triggers on any 401 response
+- Optionally triggers on expired sessions if `getCIAMState` is provided
+
+> **Real-world Example**: See [qor5-ec-demo](https://github.com/theplant/qor5-ec-demo/blob/main/frontend/src/lib/api/index.ts) for a complete integration example with both CIAM and REST clients.
 
 ### Advanced Trigger Logic
 

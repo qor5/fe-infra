@@ -18,7 +18,6 @@ A flexible and composable middleware system for `fetch` API with support for bot
 > If this is your first integration, please create a personal GitHub PAT (Personal Access Token) to avoid permission errors, as packages on GitHub require a PAT for pulling.
 >
 > 1. [Configure a personal PAT with read access to GitHub packages](https://github.com/theplant/qor5-fe-infra/wiki/Fixing-401-Unauthorized-Errors-When-Installing-Private-GitHub-Packages#-solution-1-authenticate-via-npm-login)
-> 2. Contact @geckofu to ensure your GitHub account or group has access to this project ([qor5-fe-infra](https://github.com/theplant/qor5-fe-infra)) and [fetch-middleware](https://github.com/theplant/qor5-fe-infra/pkgs/npm/fetch-middleware).
 
 If you have set this up, follow the steps below and execute the following command in your project:
 
@@ -61,6 +60,7 @@ The library comes with several built-in middlewares. Click on each for detailed 
 - **[HTTP Error Middleware](./docs/http-error.md)**: Handles HTTP errors with a simple callback.
 - **[Format Proto Error Middleware](./docs/format-proto-error.md)**: Handles Protobuf and Connect error responses.
 - **[Headers Middleware](./docs/headers.md)**: Add or modify request headers.
+- **[Tag Session Middleware](./docs/tag-session.md)**: Automatically tags requests with metadata based on URL whitelist.
 
 ## Quick Start
 
@@ -88,8 +88,34 @@ const client = createFetchClient({
 });
 
 // Use the client
-const users = await client.get<User[]>("/users");
-const user = await client.post<User>("/users", { name: "John" });
+
+// GET request
+// get<T>(path: string, options?: RestRequestOptions)
+const users = await client.get<User[]>("/users", {
+  // RestRequestOptions
+  query: { page: 1, role: "admin" }, // Query parameters
+  headers: { "X-Custom": "value" }, // Custom headers
+  _meta: { isProtected: true }, // Metadata (for middlewares only, not sent to server)
+});
+
+// POST request
+// post<T>(path: string, body?: JsonLike | Uint8Array | FormData | null, options?: RestRequestOptions)
+const newUser = await client.post<User>("/users", {
+  name: "John",
+  email: "john@example.com",
+});
+
+// PUT request
+// put<T>(path: string, body?: JsonLike | Uint8Array | FormData | null, options?: RestRequestOptions)
+await client.put("/users/123", { name: "John Updated" });
+
+// PATCH request
+// patch<T>(path: string, body?: JsonLike | Uint8Array | FormData | null, options?: RestRequestOptions)
+await client.patch("/users/123", { status: "active" });
+
+// DELETE request
+// delete<T>(path: string, options?: RestRequestOptions)
+await client.delete("/users/123");
 ```
 
 ### Connect-RPC Client
@@ -99,13 +125,20 @@ import {
   createFetchClient,
   formatProtoErrorMiddleware,
   parseConnectError,
+  tagSessionMiddleware,
 } from "@theplant/fetch-middleware";
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 
 // Create fetch client for Connect-RPC
 const fetchClient = createFetchClient({
-  middlewares: [formatProtoErrorMiddleware()],
+  middlewares: [
+    // Since Connect client cannot pass _meta directly, use tagSessionMiddleware to auto-tag by URL
+    tagSessionMiddleware(["/api.UserService/", "/api.AdminService/"], {
+      isProtected: true,
+    }),
+    formatProtoErrorMiddleware(),
+  ],
 });
 
 // Create Connect transport
@@ -116,7 +149,12 @@ const transport = createConnectTransport({
 
 // Create RPC client
 const client = createClient(YourService, transport);
+
+// Calls will automatically have isProtected tag
+await client.getUser({ id: "123" });
 ```
+
+> **Note**: Connect-RPC clients cannot pass `_meta` parameters directly due to framework limitations. To add metadata tags to requests (e.g., for use with `requestQueueMiddleware`), use `tagSessionMiddleware` to automatically tag requests based on URL whitelist. See [Tag Session Middleware](./docs/tag-session.md) for details.
 
 ## Error Handling
 

@@ -18,7 +18,6 @@
 > 如果是第一次集成，请先创建个人的 github PAT(personal access token) 避免拉取权限报错，github 上的 package 是强制用户得用 PAT 拉取包。
 >
 > 1. [配置有权限读取 github package 的个人 PAT](https://github.com/theplant/qor5-fe-infra/wiki/Fixing-401-Unauthorized-Errors-When-Installing-Private-GitHub-Packages#-solution-1-authenticate-via-npm-login)
-> 2. 找 @geckofu 确保你的 github 账号或者群组有访问该项目（[qor5-fe-infra](https://github.com/theplant/qor5-fe-infra)）和 [fetch-middleware](https://github.com/theplant/qor5-fe-infra/pkgs/npm/fetch-middleware)的权限
 
 如果你已经搞定，请看下面的步骤, 在你的业务项目里执行以下命令
 
@@ -61,6 +60,7 @@ const myMiddleware: Middleware = async (req, next, ctx) => {
 - **[HTTP Error Middleware](./docs/http-error.md)**：使用简单的回调处理 HTTP 错误。
 - **[Format Proto Error Middleware](./docs/format-proto-error.md)**：处理 Protobuf 和 Connect 错误响应。
 - **[Headers Middleware](./docs/headers.md)**：添加或修改请求头。
+- **[Tag Session Middleware](./docs/tag-session.md)**：根据 URL 白名单自动为请求添加元数据标签。
 
 ## 快速开始
 
@@ -88,8 +88,34 @@ const client = createFetchClient({
 });
 
 // 使用客户端
-const users = await client.get<User[]>("/users");
-const user = await client.post<User>("/users", { name: "John" });
+
+// GET 请求
+// get<T>(path: string, options?: RestRequestOptions)
+const users = await client.get<User[]>("/users", {
+  // RestRequestOptions
+  query: { page: 1, role: "admin" }, // 查询参数
+  headers: { "X-Custom": "value" }, // 自定义头
+  _meta: { isProtected: true }, // 元数据（仅供中间件使用，不会发送到服务器）
+});
+
+// POST 请求
+// post<T>(path: string, body?: JsonLike | Uint8Array | FormData | null, options?: RestRequestOptions)
+const newUser = await client.post<User>("/users", {
+  name: "John",
+  email: "john@example.com",
+});
+
+// PUT 请求
+// put<T>(path: string, body?: JsonLike | Uint8Array | FormData | null, options?: RestRequestOptions)
+await client.put("/users/123", { name: "John Updated" });
+
+// PATCH 请求
+// patch<T>(path: string, body?: JsonLike | Uint8Array | FormData | null, options?: RestRequestOptions)
+await client.patch("/users/123", { status: "active" });
+
+// DELETE 请求
+// delete<T>(path: string, options?: RestRequestOptions)
+await client.delete("/users/123");
 ```
 
 ### Connect-RPC 客户端
@@ -99,13 +125,20 @@ import {
   createFetchClient,
   formatProtoErrorMiddleware,
   parseConnectError,
+  tagSessionMiddleware,
 } from "@theplant/fetch-middleware";
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 
 // 为 Connect-RPC 创建 fetch 客户端
 const fetchClient = createFetchClient({
-  middlewares: [formatProtoErrorMiddleware()],
+  middlewares: [
+    // 由于 Connect 客户端无法直接传递 _meta，使用 tagSessionMiddleware 根据 URL 自动标记
+    tagSessionMiddleware(["/api.UserService/", "/api.AdminService/"], {
+      isProtected: true,
+    }),
+    formatProtoErrorMiddleware(),
+  ],
 });
 
 // 创建 Connect transport
@@ -116,7 +149,12 @@ const transport = createConnectTransport({
 
 // 创建 RPC 客户端
 const client = createClient(YourService, transport);
+
+// 调用会自动带上 isProtected 标签
+await client.getUser({ id: "123" });
 ```
+
+> **注意**：Connect-RPC 客户端由于框架限制，无法在调用时直接传递 `_meta` 参数。如需为请求添加元数据标签（例如配合 `requestQueueMiddleware` 使用），请使用 `tagSessionMiddleware` 根据 URL 白名单自动标记。详见 [Tag Session Middleware](./docs/tag-session.md)。
 
 ## 错误处理
 

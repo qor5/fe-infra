@@ -1,46 +1,43 @@
 # @theplant/proto-to-ts
 
-交互式的 Protobuf 到 TypeScript 代码生成工具，支持 Connect-RPC。
+Interactive Protobuf to TypeScript code generation tool with Connect-RPC support.
 
-## 特性
+## Features
 
-- 🎯 **交互式选择** - 通过友好的 CLI 界面选择 proto 文件或目录
-- 📚 **历史记录** - 自动保存最近使用的路径，快速重新生成
-- 🔄 **自动化流程** - 自动生成 TypeScript 类型、Connect-RPC 客户端和服务包装器
-- 🎨 **模板化配置** - 自动从 buf.yaml 提取依赖生成 buf.gen.yaml
-- 🔍 **json_name 支持** - 自动应用 protobuf 的 json_name 映射
-- 📦 **服务包装器** - 可选的 Connect-RPC 服务客户端包装器生成
+- 🎯 **Interactive Selection** - User-friendly CLI interface to select proto files or directories
+- 📚 **History** - Automatically saves recently used paths for quick regeneration
+- 🔄 **Automation** - Automatically generates TypeScript types, Connect-RPC clients, and service wrappers
+- 🎨 **Template Configuration** - Automatically extracts dependencies from `buf.yaml` to generate `buf.gen.yaml`
+- 🔍 **JSON Name Support** - Automatically applies protobuf `json_name` mappings
+- 📦 **Service Wrappers** - Optional generation of Connect-RPC service client wrappers
 
-## 安装
+## Installation
+
+### From GitHub Packages
+
+> If this is your first integration, please create a personal GitHub PAT (Personal Access Token) to avoid permission errors, as packages on GitHub require a PAT for pulling.
+>
+> 1. [Configure a personal PAT with read access to GitHub packages](https://github.com/theplant/qor5-fe-infra/wiki/Fixing-401-Unauthorized-Errors-When-Installing-Private-GitHub-Packages#-solution-1-authenticate-via-npm-login)
+
+If you have set this up, follow the steps below and execute the following command in your project:
 
 ```bash
+# 1. Install
+echo "@theplant:registry=https://npm.pkg.github.com" >> .npmrc
 pnpm add -D @theplant/proto-to-ts
 ```
 
-## 依赖
+## Usage
 
-此工具需要以下依赖作为 peer dependencies（通常已在项目中安装）：
+### Basic Usage
 
-```json
-{
-  "@bufbuild/buf": "^1.59.0",
-  "@bufbuild/protoc-gen-es": "^2.9.0",
-  "@connectrpc/protoc-gen-connect-es": "^1.7.0"
-}
-```
-
-注意：**不会**带走运行时依赖（如 `@connectrpc/connect`、`@bufbuild/protobuf` 等），这些需要在你的项目中单独安装。
-
-## 使用
-
-### 基本用法
+Run the interactive CLI in your project root:
 
 ```bash
-# 在项目根目录运行
 npx proto-to-ts
 ```
 
-或在 package.json 中添加脚本：
+Or add a script to your `package.json`:
 
 ```json
 {
@@ -50,53 +47,63 @@ npx proto-to-ts
 }
 ```
 
-### 配置
+### Configuration (Optional)
 
-在项目根目录创建 `proto-to-ts.config.js`：
+The tool comes with sensible defaults. If you need to customize the output directory or other options, you can create a `proto-to-ts.config.js` file in your project root.
+
+You can quickly generate a config file using:
+
+```bash
+npx proto-to-ts --init
+```
+
+Or create it manually:
 
 ```javascript
 export default {
-  // 生成代码的输出目录
+  // Output directory for generated code (default: src/lib/api/generated)
   outputDir: "src/lib/api/generated",
 
-  // 服务包装器目录（可选）
-  // 设置为 undefined 或删除以禁用服务包装器生成
+  // Optional: Service wrapper directory
+  // If set, generates a client wrapper for each proto service
+  // Set to undefined or remove to disable service wrapper generation
+  // (default: src/lib/api/services)
   servicesDir: "src/lib/api/services",
 
-  // 历史记录文件路径（相对于项目根目录）
+  // History file path (relative to project root) (default: .proto-to-ts-history.json)
   historyFile: ".proto-to-ts-history.json",
 
-  // 保存的历史记录最大数量
+  // Maximum number of history items to save (default: 10)
   maxHistory: 10,
 };
 ```
 
-### 工作流程
+### Workflow
 
-1. 运行 `proto-to-ts` 命令
-2. 从历史记录中选择或输入新的 proto 文件/目录路径
-3. 工具会自动：
-   - 查找 `buf.yaml` 并提取依赖
-   - 生成临时的 `buf.gen.yaml` 配置
-   - 运行 `buf generate` 生成 TypeScript 代码
-   - 应用 `json_name` 映射
-   - 生成服务客户端包装器（如果配置了）
+1. Run the `proto-to-ts` command.
+2. Select a path from history or enter a new absolute path to your proto file/directory.
+3. The tool will automatically:
+   - Find `buf.yaml` and extract dependencies.
+   - Generate a temporary `buf.gen.yaml` configuration.
+   - Run `buf generate` to generate TypeScript code.
+   - Apply `json_name` mappings.
+   - Generate service client wrappers (if configured).
 
-## 生成的内容
+## Generated Content
 
-### TypeScript 类型和客户端
+### TypeScript Types and Clients
 
-工具使用以下插件生成代码：
+The tool uses the following plugins to generate code:
 
-- `@bufbuild/protoc-gen-es` - 生成 TypeScript 消息类型
-- `@connectrpc/protoc-gen-connect-es` - 生成 Connect-RPC 服务客户端
+- `@bufbuild/protoc-gen-es` - Generates TypeScript message types.
+- `@connectrpc/protoc-gen-connect-es` - Generates Connect-RPC service clients.
 
-### 服务包装器（可选）
+### Service Wrappers (Optional)
 
-如果配置了 `servicesDir`，工具会为每个服务生成包装器客户端：
+If `servicesDir` is configured, the tool generates wrapper clients for each service:
 
 ```typescript
-// 示例：product.client.ts
+// Example: product.client.ts
 import { createClient, type Client } from "@connectrpc/connect";
 import { ProductService } from "../generated/pim/product/v1/service_connect";
 import { transport } from "../connect-client";
@@ -107,7 +114,7 @@ export const productClient: Client<typeof ProductService> = createClient(
 );
 ```
 
-以及索引文件：
+And an index file:
 
 ```typescript
 // services/index.ts
@@ -115,92 +122,34 @@ export { productClient } from "./product.client";
 export { userClient } from "./user.client";
 ```
 
-## buf.gen.yaml 模板
+### Connect Client Setup (First Run)
 
-工具会自动生成 `buf.gen.yaml`，包含：
+On the first run, the tool can automatically generate the necessary Connect client setup files if they don't exist:
 
-1. **inputs** - 从 proto 目录路径和 buf.yaml 的依赖自动提取
-2. **plugins** - 固定使用 `protoc-gen-es` 和 `protoc-gen-connect-es`
-3. **managed mode** - 自动禁用外部模块的管理
-
-示例生成的 `buf.gen.yaml`：
-
-```yaml
-version: v2
-
-managed:
-  enabled: true
-  disable:
-    - module: buf.build/googleapis/googleapis
-    - module: buf.build/grpc-ecosystem/grpc-gateway
-
-inputs:
-  - directory: /path/to/proto/pim
-  - module: buf.build/googleapis/googleapis
-  - module: buf.build/grpc-ecosystem/grpc-gateway
-
-plugins:
-  - local: protoc-gen-es
-    out: src/lib/api/generated
-    opt:
-      - target=ts
-      - import_extension=none
-  - local: protoc-gen-connect-es
-    out: src/lib/api/generated
-    opt:
-      - target=ts
-      - import_extension=none
-```
+- `connect-client.ts`: Configures the transport with `fetch-middleware`.
+- `handlers/connect-error-handler.ts`: Standard error handling utility.
 
 ## API
 
-可以编程方式使用：
+You can also use the tool programmatically:
 
 ```typescript
-import { runInteractiveCLI, generateFromProto } from '@theplant/proto-to-ts'
+import { runInteractiveCLI, generateFromProto } from '@theplant/proto-to-ts';
 
-// 运行交互式 CLI
+// Run the interactive CLI
 await runInteractiveCLI({
   outputDir: 'src/lib/api/generated',
   servicesDir: 'src/lib/api/services',
-})
+});
 
-// 直接生成（非交互式）
+// Generate directly (non-interactive)
 await generateFromProto({
   targetPath: '/path/to/proto',
   validation: { valid: true, type: 'directory', files: [...] },
   workingDir: process.cwd(),
   outputDir: 'src/lib/api/generated',
-})
+});
 ```
-
-## 目录结构
-
-```
-your-project/
-├── proto-to-ts.config.js       # 配置文件
-├── .proto-to-ts-history.json   # 历史记录（自动生成）
-├── src/
-│   └── lib/
-│       └── api/
-│           ├── generated/       # 生成的 TS 代码
-│           │   ├── *_pb.ts      # 消息类型
-│           │   └── *_connect.ts # Connect 客户端
-│           ├── services/        # 服务包装器（可选）
-│           │   ├── index.ts
-│           │   └── *.client.ts
-│           └── connect-client.ts # 你的 transport 配置
-```
-
-## 与原脚本的区别
-
-这个包从 `qor5-ec-demo/frontend/scripts/generate-api-interactive.ts` 抽离而来，主要改进：
-
-1. ✅ 独立的 npm 包，可在多个项目中复用
-2. ✅ 自动从 proto 目录的 buf.yaml 提取依赖
-3. ✅ 通过配置文件自定义输出路径
-4. ✅ 支持历史记录保存
-5. ✅ 只包含代码生成依赖，不带走运行时依赖
 
 ## License
 
