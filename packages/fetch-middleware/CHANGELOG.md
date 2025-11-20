@@ -1,5 +1,14 @@
 # @theplant/fetch-middleware
 
+## 0.4.0
+
+### Minor Changes
+
+- [#34](https://github.com/theplant/qor5-fe-infra/pull/34) [`fe18d2c`](https://github.com/theplant/qor5-fe-infra/commit/fe18d2c30677a96e504aec33095e4aad8420dd27) Thanks [@danni-cool](https://github.com/danni-cool)! - feat: add requestQueueMiddleware for handling authentication refresh and retries
+  feat: add support for _meta property in Request and RestRequestOptions
+  feat: strip internal properties (starting with _) from JSON request body
+  feat: add CIAM auth helpers
+
 ## 0.3.1
 
 ### Patch Changes
