@@ -22,6 +22,7 @@ export type RestClientOptions = {
 export type RestRequestOptions = {
   headers?: HeadersInit;
   query?: Record<string, string | number | boolean | undefined>;
+  _meta?: Record<string, any>; // Internal metadata for middlewares
 };
 
 /**
@@ -158,6 +159,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       url,
       method: "GET",
       headers: opts?.headers,
+      _meta: opts?._meta,
     });
   };
 
@@ -171,6 +173,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       joinUrl(options.baseUrl, path),
       body,
       opts?.headers,
+      opts?._meta,
     );
     return run<T>(request);
   };
@@ -185,6 +188,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       joinUrl(options.baseUrl, path),
       body,
       opts?.headers,
+      opts?._meta,
     );
     return run<T>(request);
   };
@@ -199,6 +203,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       joinUrl(options.baseUrl, path),
       body,
       opts?.headers,
+      opts?._meta,
     );
     return run<T>(request);
   };
@@ -212,6 +217,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
       joinUrl(options.baseUrl, path),
       null,
       opts?.headers,
+      opts?._meta,
     );
     return run<T>(request);
   };
@@ -255,11 +261,28 @@ function headersMethodOverride(headers: Headers, method: string) {
   }
 }
 
+/**
+ * Strip properties starting with underscore from object (first level only)
+ */
+function stripInternalProperties(obj: any): any {
+  if (!obj || typeof obj !== "object" || obj.constructor !== Object) {
+    return obj;
+  }
+  const cleaned: any = {};
+  for (const key in obj) {
+    if (!key.startsWith("_")) {
+      cleaned[key] = obj[key];
+    }
+  }
+  return cleaned;
+}
+
 function buildRequest(
   method: string,
   url: string,
   body: JsonLike | Uint8Array | FormData | null | undefined,
   headersInit?: HeadersInit,
+  _meta?: Record<string, any>,
 ): Request {
   const headers = new Headers(headersInit);
   let payload: BodyInit | null = null;
@@ -273,7 +296,9 @@ function buildRequest(
   } else if (body == null) {
     payload = null;
   } else {
-    payload = JSON.stringify(body);
+    // Strip internal properties (starting with _) before stringifying
+    const cleanedBody = stripInternalProperties(body);
+    payload = JSON.stringify(cleanedBody);
     // Set Content-Type for JSON payloads if not already set
     if (!headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
@@ -285,5 +310,6 @@ function buildRequest(
     method,
     headers,
     body: payload,
+    _meta,
   };
 }

@@ -4,6 +4,7 @@ export type Request = {
   headers?: HeadersInit;
   body?: BodyInit | null;
   signal?: AbortSignal;
+  _meta?: Record<string, any>; // Internal metadata stripped before request (for middlewares)
 };
 
 export type SuitResponse = Response;

@@ -308,7 +308,3 @@ ISC
 ## 支持
 
 如有问题、疑问或贡献，请在 GitHub 上[提交 issue](https://github.com/theplant/qor5-fe-infra/issues)。
-
----
-
-由 [theplant](https://github.com/theplant) 用 ❤️ 构建

@@ -310,5 +310,3 @@ ISC
 For issues, questions, or contributions, please [open an issue](https://github.com/theplant/qor5-fe-infra/issues) on GitHub.
 
 ---
-
-Built with ❤️ by [theplant](https://github.com/theplant)

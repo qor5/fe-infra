@@ -1,0 +1,57 @@
+{
+  "name": "@theplant/proto-to-ts",
+  "version": "0.0.0",
+  "description": "Interactive protobuf to TypeScript code generation tool with Connect-RPC support",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "proto-to-ts": "./bin/proto-to-ts.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "pnpm run clean && pnpm run build"
+  },
+  "keywords": [
+    "protobuf",
+    "grpc",
+    "connect-rpc",
+    "code-generation",
+    "buf"
+  ],
+  "author": "theplant",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "src",
+    "bin"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/",
+    "access": "restricted"
+  },
+  "packageManager": "pnpm@10.17.1",
+  "dependencies": {
+    "@bufbuild/buf": "^1.59.0",
+    "@bufbuild/protoc-gen-es": "2.9.0",
+    "inquirer": "^9.3.8"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^22.8.1",
+    "eslint": "^9.13.0",
+    "prettier": "^3.6.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3"
+  }
+}
