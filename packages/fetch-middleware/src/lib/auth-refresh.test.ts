@@ -79,7 +79,7 @@ describe("createSessionRefreshMiddleware", () => {
     const protectedReq = createProtectedRequest();
     expect(options.ignore?.(protectedReq)).toBe(false);
 
-    // 2) queueTrigger: 对于 401 响应应该返回 true（被捕获到）
+    // 2) queueTrigger: For a 401 response, should return true (should be captured)
     const shouldTrigger = await options.queueTrigger({
       response: createResponse(401),
       request: protectedReq,
