@@ -75,7 +75,7 @@ describe("createSessionRefreshMiddleware", () => {
     expect(capturedOptions).not.toBeNull();
     const options = capturedOptions as RequestQueueOptions;
 
-    // 1) ignoreRequest: protected request应该不会被忽略
+    // 1) ignoreRequest: protected request should not be ignored
     const protectedReq = createProtectedRequest();
     expect(options.ignore?.(protectedReq)).toBe(false);
 
