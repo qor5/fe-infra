@@ -75,7 +75,8 @@ function isSessionExpired(
   getAuthHandler: () => RefreshableAuthHandler,
 ): boolean {
   const expiresAt = getAuthSessionExpiresAt(getAuthHandler);
-  return !!(expiresAt && expiresAt < Date.now() - 1000);
+  // Treat session as expired if it will expire within the next second (safety margin)
+  return !!(expiresAt && expiresAt < Date.now() + 1000);
 }
 
 /**
