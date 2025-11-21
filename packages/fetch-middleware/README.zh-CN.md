@@ -59,7 +59,7 @@ const myMiddleware: Middleware = async (req, next, ctx) => {
 - **[JSON Response Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/json-response.md)**：解析 JSON 响应并附加到 `_body` 属性。
 - **[Extract Body Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/extract-body.md)**：从 Response 中提取 `_body` 并将其作为最终结果返回。
 - **[HTTP Error Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/http-error.md)**：使用简单的回调处理 HTTP 错误。
-- **[Format Proto Error Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/formatProtoError.md)**：处理 Protobuf 和 Connect 错误响应。
+- **[Format Proto Error Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/format-proto-error.md)**：处理 Protobuf 和 Connect 错误响应。
 - **[Headers Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/headers.md)**：添加或修改请求头。
 - **[Tag Session Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/tag-session.md)**：根据 URL 白名单自动为请求添加元数据标签。
 

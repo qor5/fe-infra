@@ -59,7 +59,7 @@ The library comes with several built-in middlewares. Click on each for detailed 
 - **[JSON Response Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/json-response.md)**: Parses JSON responses and attaches to `_body` property.
 - **[Extract Body Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/extract-body.md)**: Extracts `_body` from Response and returns it as the final result.
 - **[HTTP Error Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/http-error.md)**: Handles HTTP errors with a simple callback.
-- **[Format Proto Error Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/formatProtoError.md)**: Handles Protobuf and Connect error responses.
+- **[Format Proto Error Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/format-proto-error.md)**: Handles Protobuf and Connect error responses.
 - **[Headers Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/headers.md)**: Add or modify request headers.
 - **[Tag Session Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/tag-session.md)**: Automatically tags requests with metadata based on URL whitelist.
 
