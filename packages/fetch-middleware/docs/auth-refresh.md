@@ -18,7 +18,6 @@ At its core, the auth-refresh helpers:
 ```ts
 import {
   createSessionRefreshMiddleware,
-  createConnectSessionRefreshMiddleware,
   type SessionRefreshMiddlewareOptions,
 } from "@theplant/fetch-middleware";
 ```
@@ -67,16 +66,16 @@ export interface RefreshableAuthHandler {
 }
 ```
 
-## REST: `createSessionRefreshMiddleware`
-
-This helper is designed for REST clients created via `createFetchClient`.
+## Usage
 
 ### Behavior
 
 For each request:
 
 - **Ignored** when `ignoreRequest(request) === true` (if provided).
-- **Triggers queue** when:
+  - This means the request will pass through immediately without queueing.
+  - It also means a 401 response from this request will **NOT** trigger a refresh.
+- **Triggers queue** when (provided it's not ignored):
   - Response status is **401**, or
   - Local session is **already expired** (`session.expiresAt < now - 1s`).
 
@@ -89,7 +88,7 @@ When a trigger occurs:
 
 ### Example (REST + `_meta.isProtected`)
 
-This mirrors the pattern used in `qor5-ec-demo`:
+This mirrors the pattern used in typical applications:
 
 ```ts
 import {
@@ -126,43 +125,19 @@ export const fetchClient = createFetchClient({
 });
 ```
 
-For REST calls you can then do:
-
-```ts
-await fetchClient.get("/api/profile", {
-  _meta: { isProtected: true }, // will be managed by auth-refresh
-});
-
-await fetchClient.get("/api/public", {
-  _meta: { isProtected: false }, // will be ignored by auth-refresh
-});
-```
-
-## Connect-RPC: `createConnectSessionRefreshMiddleware`
-
-This helper is tailored for Connect-RPC flows, especially when used with
-`tagSessionMiddleware` to mark protected endpoints.
-
-### Behavior
-
-For each request:
-
-- **Only considers** requests with `request._meta.isProtected === true`.
-- **Triggers queue** when:
-  - Response status is **401**, or
-  - Session is **expired** (`session.expiresAt < now - 1s`).
-- **Always ignores** the RefreshSession endpoint itself
-  (`ignore: ({ url }) => url.includes('/RefreshSession')`) to avoid deadlocks.
-
-The rest of the behavior (queueing, refresh, retry) is the same as the REST helper.
-
 ### Example (Connect-RPC)
+
+For Connect-RPC, you typically want to:
+
+1. Tag protected requests (e.g. using `tagSessionMiddleware`).
+2. Ignore the refresh endpoint itself to avoid deadlocks.
+3. Ignore non-protected requests.
 
 ```ts
 import {
   createFetchClient,
   tagSessionMiddleware,
-  createConnectSessionRefreshMiddleware,
+  createSessionRefreshMiddleware,
 } from "@theplant/fetch-middleware";
 
 import { createConnectTransport } from "@connectrpc/connect-web";
@@ -175,16 +150,24 @@ const onSessionInvalid = () => {
   // e.g. clear global auth store
 };
 
-const connectSessionRefreshMiddleware = createConnectSessionRefreshMiddleware({
+const sessionRefreshMiddleware = createSessionRefreshMiddleware({
   getAuthHandler: () => ciamHandlers,
   onSessionInvalid,
+  // Combine logic:
+  // 1. Ignore the refresh endpoint itself
+  // 2. Only manage protected requests
+  ignoreRequest: (req) => {
+    if (req.url.includes("/RefreshSession")) return true;
+    if (!req._meta?.isProtected) return true;
+    return false;
+  },
   debug: true,
 });
 
 const fetchClient = createFetchClient({
   middlewares: [
     // 1. Queue & refresh logic
-    connectSessionRefreshMiddleware,
+    sessionRefreshMiddleware,
     // 2. Tag protected Connect endpoints
     tagSessionMiddleware(["/api.UserService/", "/api.AdminService/"], {
       isProtected: true,
@@ -202,37 +185,10 @@ const client = createClient(YourService, transport);
 
 ## How It Works Internally
 
-Both helpers are **thin wrappers** around `requestQueueMiddleware`:
+The helper is a **thin wrapper** around `requestQueueMiddleware`:
 
-- They build a `RequestQueueOptions` object:
-  - `queueTrigger` encodes auth-specific conditions (401/expiry + `_meta`).
+- It builds a `RequestQueueOptions` object:
+  - `queueTrigger` encodes auth-specific conditions (401/expiry) and checks `ignoreRequest`.
   - `handler` calls your `auth.refreshSession()` and maps success/failure.
-  - `ignore` (for Connect) or `ignoreRequest` (for REST) defines which
-    requests are managed.
-- They call `requestQueueMiddleware(options)` and return the resulting
-  `Middleware`.
-
-You can think of them as:
-
-```ts
-const queueOptions: RequestQueueOptions = {
-  queueTrigger: (info) => {
-    /* auth logic here */
-  },
-  handler: (next) => {
-    /* calls refreshSession + onSessionInvalid */
-  },
-  ignore: (request) => {
-    /* optional filtering */
-  },
-  debug,
-};
-
-return requestQueueMiddleware(queueOptions);
-```
-
-If you have very custom requirements, you can still build your own
-`RequestQueueOptions` and call `requestQueueMiddleware` directly. But for
-most authentication flows, **`createSessionRefreshMiddleware`** and
-**`createConnectSessionRefreshMiddleware`** should be enough and are
-much easier to reason about.
+  - `ignore` delegates to `ignoreRequest`.
+- It calls `requestQueueMiddleware(options)` and returns the resulting `Middleware`.

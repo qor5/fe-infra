@@ -109,6 +109,7 @@ export function createSessionRefreshMiddleware(
     // - Any 401 response
     // - Or when the current session is already expired
     queueTrigger: (info) => {
+      if (ignoreRequest && ignoreRequest(info.request)) return false;
       if (info.response.status === 401) return true;
       if (isSessionExpired(getAuthHandler)) return true;
       return false;
@@ -129,53 +130,6 @@ export function createSessionRefreshMiddleware(
   if (ignoreRequest) {
     queueOptions.ignore = ignoreRequest;
   }
-
-  return requestQueueMiddleware(queueOptions);
-}
-
-/**
- * Creates a middleware that handles automatic session refreshing for CIAM RPC clients.
- * It uses requestQueueAuthHandleConnectPreset which is optimized for CIAM's specific flow.
- *
- * @example
- * ```ts
- * const ciamAuthMiddleware = createConnectSessionRefreshMiddleware({
- *   getAuthHandler: () => ciamHandlers,
- *   onSessionInvalid: () => useAuthStore.getState().clearAuth(),
- * })
- * ```
- */
-export function createConnectSessionRefreshMiddleware(
-  options: SessionRefreshMiddlewareOptions,
-): Middleware {
-  const { getAuthHandler, onSessionInvalid, debug = false } = options;
-
-  // CIAM / Connect preset:
-  // - Only handle protected requests (request._meta.isProtected === true)
-  // - Trigger on 401 or when session is expired
-  const queueOptions: RequestQueueOptions = {
-    queueTrigger: (info) => {
-      const isProtected = !!info.request._meta?.isProtected;
-      if (!isProtected) return false;
-
-      if (info.response.status === 401) return true;
-      if (isSessionExpired(getAuthHandler)) return true;
-
-      return false;
-    },
-    // Avoid deadlock by always ignoring the RefreshSession endpoint itself
-    ignore: ({ url }) => url.includes("/RefreshSession"),
-    handler: async (next) => {
-      try {
-        await getAuthHandler().refreshSession();
-        next(true);
-      } catch (error) {
-        onSessionInvalid();
-        next(false);
-      }
-    },
-    debug,
-  };
 
   return requestQueueMiddleware(queueOptions);
 }
