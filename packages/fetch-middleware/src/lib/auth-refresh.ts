@@ -4,13 +4,18 @@ import {
 } from "./request-queue";
 import type { Middleware } from "../middleware";
 
+export interface AuthState {
+  session: { expiresAt?: number } | null;
+  [key: string]: any;
+}
+
 /**
  * Interface for authentication handlers required by the refresh middleware.
  * This decouples the middleware from specific SDK implementations.
  */
 export interface RefreshableAuthHandler {
   refreshSession: () => Promise<any>;
-  getState: () => any;
+  getState: () => AuthState | any;
 }
 
 /**
@@ -53,8 +58,10 @@ function getAuthSessionExpiresAt(
   getAuthHandler: () => RefreshableAuthHandler,
 ): number | undefined {
   const state = getAuthHandler().getState();
-  const session = (state as any)?.session ?? state;
-  const rawExpiresAt = (session as any)?.expiresAt as unknown;
+  // We prioritize state.session.expiresAt (AuthState style)
+  // but fallback to state.expiresAt or state.session.expiresAt dynamically (legacy style)
+  const session = state?.session ?? state;
+  const rawExpiresAt = session?.expiresAt;
 
   if (typeof rawExpiresAt === "number") {
     return rawExpiresAt;
