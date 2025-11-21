@@ -14,4 +14,4 @@
 
 ## Breaking Changes
 
-- `parseConnectError`: The `validationError` and `rawMessage` fields are currently disabled/commented out in the return object.
+- `parseConnectError`: Removed the `validationError` and `rawMessage` fields from the return object. Code accessing these properties will need to be updated.
