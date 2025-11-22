@@ -60,6 +60,12 @@ import { transport } from '${connectClientPath}'
  * This provides full TypeScript type inference for all service methods
  */
 export const ${name.toLowerCase()}Client: Client<typeof ${serviceName}> = createClient(${serviceName}, transport)
+
+// Export service type for external usage
+export type ${name}Client = Client<typeof ${serviceName}>
+
+// Re-export all types from generated file
+export * as ${name.toLowerCase()}ClientType from '${generatedPath}/${importPath}'
 `;
 }
 
@@ -75,7 +81,7 @@ export function generateServicesIndexFile(
 ${services
   .map(
     (s) =>
-      `export { ${s.name.toLowerCase()}Client } from './${s.name.toLowerCase()}.client'`,
+      `export { ${s.name.toLowerCase()}Client, type ${s.name}Client, ${s.name.toLowerCase()}ClientType } from './${s.name.toLowerCase()}.client'`,
   )
   .join("\n")}
 `;
