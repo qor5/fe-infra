@@ -203,15 +203,14 @@ export function generateServicesIndexFile(
 ${services
   .map(
     (s) =>
-      `export { ${s.camelName}Client, type ${s.name}Client } from './${s.name.toLowerCase()}.client'`,
+      `export { ${s.camelName}Client, type ${s.name}Client } from './${s.camelName}.client'`,
   )
   .join("\n")}
 
 // Re-export types namespace
 ${services
   .map(
-    (s) =>
-      `export { ${s.camelName}ClientType } from './${s.name.toLowerCase()}.client'`,
+    (s) => `export { ${s.camelName}ClientType } from './${s.camelName}.client'`,
   )
   .join("\n")}
 `;
@@ -255,10 +254,7 @@ export async function generateServiceWrappers(
 
     const code = generateServiceWrapper(cleanName, serviceInfo, moduleName);
 
-    const outputPath = path.join(
-      servicesDir,
-      `${cleanName.toLowerCase()}.client.ts`,
-    );
+    const outputPath = path.join(servicesDir, `${camelName}.client.ts`);
     fs.writeFileSync(outputPath, code);
     console.log(`   ✅ Generated ${cleanName} client`);
 
