@@ -54,6 +54,7 @@ export interface ServiceInfo {
   serviceName: string;
   importPath: string;
   methods: MethodInfo[];
+  imports: Record<string, string>;
 }
 
 export interface BufGenConfig {
