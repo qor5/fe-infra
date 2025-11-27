@@ -1,6 +1,6 @@
 {
   "name": "@theplant/proto-to-ts",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Interactive protobuf to TypeScript code generation tool with Connect-RPC support",
   "type": "module",
   "main": "./dist/index.js",
