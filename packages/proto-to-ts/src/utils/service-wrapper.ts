@@ -237,10 +237,12 @@ export async function generateServiceWrappers(
   // Generate wrapper for each service file
   for (const filePath of serviceFiles) {
     // Skip third-party services (e.g., google, buf, connect)
+    const normalizedPath = path.normalize(filePath);
+    const pathSegments = normalizedPath.split(path.sep);
     if (
-      filePath.includes("/google/") ||
-      filePath.includes("/buf/") ||
-      filePath.includes("/connect/")
+      pathSegments.includes("google") ||
+      pathSegments.includes("buf") ||
+      pathSegments.includes("connect")
     ) {
       continue;
     }
