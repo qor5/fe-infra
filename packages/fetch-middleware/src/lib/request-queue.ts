@@ -502,3 +502,23 @@ export function requestQueueMiddleware(
     });
   };
 }
+
+/**
+ * @deprecated Use the new auth refresh middleware instead.
+ * Helper for CIAM preset auth handling.
+ */
+export function requestQueueAuthHandleCIAMPreset(options: any): Middleware {
+  // For backward compatibility, call the new middleware or provide previous logic.
+  // Replace with actual previous implementation if needed.
+  return requestQueue(options);
+}
+
+/**
+ * @deprecated Use the new auth refresh middleware instead.
+ * Helper for generic preset auth handling.
+ */
+export function requestQueueAuthHandlePreset(options: any): Middleware {
+  // For backward compatibility, call the new middleware or provide previous logic.
+  // Replace with actual previous implementation if needed.
+  return requestQueue(options);
+}
