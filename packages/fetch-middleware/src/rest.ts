@@ -12,7 +12,7 @@ type Fetcher = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-export type RestClientOptions = {
+export type FetchClientOptions = {
   baseUrl?: string;
   middlewares?: Middleware[];
   fetcher?: Fetcher;
@@ -38,7 +38,7 @@ export type FetchHandler = (
  * REST client with convenience methods for HTTP verbs
  * Also acts as a fetch handler that can be passed to connect-es or other libraries
  */
-export type RestClient = FetchHandler & {
+export type FetchClient = FetchHandler & {
   get<T = unknown>(
     path: string,
     options?: RestRequestOptions,
@@ -110,7 +110,9 @@ function toQueryString(query?: RestRequestOptions["query"]): string {
  * const user = await client.get('/api/users/123')
  * ```
  */
-export function createFetchClient(options: RestClientOptions = {}): RestClient {
+export function createFetchClient(
+  options: FetchClientOptions = {},
+): FetchClient {
   const handler = composeMiddlewares(options.middlewares ?? [], {
     fetcher: (input, init) => {
       const baseFetcher = options.fetcher ?? fetch;
@@ -148,7 +150,7 @@ export function createFetchClient(options: RestClientOptions = {}): RestClient {
   };
 
   // Attach REST methods to the fetch handler function
-  const client = fetchHandler as RestClient;
+  const client = fetchHandler as FetchClient;
 
   client.get = function <T = unknown>(path: string, opts?: RestRequestOptions) {
     const url = joinUrl(
