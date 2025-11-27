@@ -1,5 +1,21 @@
 # @theplant/fetch-middleware
 
+## 0.4.1
+
+### Patch Changes
+
+- [#37](https://github.com/theplant/qor5-fe-infra/pull/37) [`08b9e84`](https://github.com/theplant/qor5-fe-infra/commit/08b9e84552438edf04e67645641977d761e89a28) Thanks [@danni-cool](https://github.com/danni-cool)! - ### @theplant/proto-to-ts
+
+  Significant feature enhancements: added method extraction, import resolution, interface generation, and other functional improvements. This update goes beyond code style formatting and introduces new capabilities to the package.
+
+  ### @theplant/fetch-middleware
+
+  Documentation cleanup: removed deprecated auth-refresh middleware documentation and references.
+
+  **Breaking changes:**
+  - Removed `rawMessage` and `validationError` from the `parseConnectError` return type.
+  - Renamed types: `RestClientOptions` → `FetchClientOptions`, `RestClient` → `FetchClient`.
+
 ## 0.4.0
 
 ### Minor Changes
