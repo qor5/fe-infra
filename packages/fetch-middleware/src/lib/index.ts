@@ -4,7 +4,6 @@ export * from "./http-error";
 // Request middlewares
 export * from "./headers";
 export * from "./request-queue";
-export * from "./auth-refresh";
 
 // Response middlewares
 export * from "./response-transform";
