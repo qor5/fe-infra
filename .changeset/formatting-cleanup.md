@@ -5,7 +5,7 @@
 
 ### @theplant/proto-to-ts
 
-Code style formatting cleanup: removed semicolons and changed double quotes to single quotes for consistency with project linting rules
+Significant feature enhancements: added method extraction, import resolution, interface generation, and other functional improvements. This update goes beyond code style formatting and introduces new capabilities to the package.
 
 ### @theplant/fetch-middleware
 
