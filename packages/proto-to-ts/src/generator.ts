@@ -236,8 +236,6 @@ export async function generateFromProto(
       // Generate top-level index.ts
       const rpcIndexPath = path.join(resolvedRpcServiceDir, "index.ts");
 
-      // Read existing content to merge imports if needed (though template rewrites it)
-      // The template generator now takes care of generating unique exports for all modules
       fs.writeFileSync(rpcIndexPath, generateRpcServiceIndexTemplate(modules));
       console.log(`   ✅ Generated index.ts (${modules.length} modules)`);
       console.log(`   📦 Registered modules: ${modules.join(", ")}`);
