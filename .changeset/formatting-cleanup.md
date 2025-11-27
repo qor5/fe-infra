@@ -9,4 +9,8 @@ Significant feature enhancements: added method extraction, import resolution, in
 
 ### @theplant/fetch-middleware
 
-Documentation cleanup: removed deprecated auth-refresh middleware documentation and references
+Documentation cleanup: removed deprecated auth-refresh middleware documentation and references.
+
+**Breaking changes:**
+- Removed `rawMessage` and `validationError` from the `parseConnectError` return type.
+- Renamed types: `RestClientOptions` → `FetchClientOptions`, `RestClient` → `FetchClient`.
