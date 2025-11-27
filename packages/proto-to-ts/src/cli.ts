@@ -161,6 +161,11 @@ export async function runInteractiveCLI(config: ProtoGenConfig): Promise<void> {
   console.log(`   Generated files: ${outputDir}`);
   console.log(`   Service clients: ${servicesDir}\n`);
 
+  // BREAKING CHANGE: Flat structure is no longer supported. All projects now use modular structure.
+  console.warn(
+    "⚠️  NOTICE: The flat structure option has been removed. All projects now use the modular structure.\n" +
+    "If you previously relied on the flat structure, please update your workflow accordingly."
+  );
   // Confirm before proceeding
   const { confirm } = await inquirer.prompt([
     {
