@@ -341,6 +341,64 @@ middlewares: [
 ];
 ```
 
+### 包装现有的自定义 Fetch
+
+如果你的项目中已经有自定义的 fetch 函数，可以使用 `createFetchClient` 包装它来添加中间件支持，同时保持原有的调用方式：
+
+**改造前（没有中间件）：**
+
+```typescript
+// 原来的自定义 fetch
+function customFetch(url: RequestInfo | URL, options?: RequestInit) {
+  const headers = new Headers(options?.headers);
+  headers.set("Accept", "application/proto");
+
+  return window
+    .fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    })
+    .catch((err) => {
+      throw new NetworkError(err, String(url));
+    })
+    .then(validateStatus);
+}
+```
+
+**改造后（支持中间件）：**
+
+```typescript
+import {
+  createFetchClient,
+  formatProtoErrorMiddleware,
+} from "@theplant/fetch-middleware";
+
+// 创建支持中间件的 fetch 客户端
+const fetchClient = createFetchClient({
+  middlewares: [
+    formatProtoErrorMiddleware(),
+    // 根据需要添加更多中间件
+  ],
+});
+
+// 包装你的自定义 fetch 逻辑
+function customFetch(url: RequestInfo | URL, options?: RequestInit) {
+  const headers = new Headers(options?.headers);
+  headers.set("Accept", "application/proto");
+
+  // 使用 fetchClient 代替 window.fetch
+  return fetchClient(url, {
+    ...options,
+    headers,
+    credentials: "include",
+  }).catch((err) => {
+    throw new NetworkError(err, String(url));
+  });
+  // 注意：错误处理现在由中间件完成，validateStatus 可能不再需要
+}
+```
+
 ## 设计原则
 
 ### 保持 Response 原生

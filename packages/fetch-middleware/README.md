@@ -341,6 +341,125 @@ middlewares: [
 ];
 ```
 
+### Wrapping Existing Custom Fetch
+
+If you already have a custom fetch function in your project, you can use `createFetchClient` to create a middleware-powered fetch and pass it to libraries that accept a custom `fetch` parameter.
+
+**Before (without middleware):**
+
+```typescript
+import { createConnectTransport } from "@connectrpc/connect-web";
+
+// Original custom fetch
+function customFetch(url: RequestInfo | URL, options?: RequestInit) {
+  const headers = new Headers(options?.headers);
+  headers.set("Accept", "application/proto");
+
+  return window
+    .fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    })
+    .catch((err) => {
+      throw new NetworkError(err, String(url));
+    })
+    .then(validateStatus);
+}
+
+// Pass to transport
+const transport = createConnectTransport({
+  baseUrl: API_BASE_URL,
+  fetch: customFetch,
+});
+```
+
+**After (with middleware support):**
+
+```typescript
+import { createConnectTransport } from "@connectrpc/connect-web";
+import {
+  createFetchClient,
+  formatProtoErrorMiddleware,
+  tagSessionMiddleware,
+} from "@theplant/fetch-middleware";
+
+// Create a middleware-powered fetch client
+const fetchClient = createFetchClient({
+  fetchInit: {
+    credentials: "include",
+    headers: {
+      Accept: "application/proto",
+    },
+  },
+  middlewares: [
+    formatProtoErrorMiddleware(),
+    tagSessionMiddleware(["/api.UserService/"], { isProtected: true }),
+    // Add more middlewares as needed
+  ],
+});
+
+// Pass to transport - usage remains the same
+const transport = createConnectTransport({
+  baseUrl: API_BASE_URL,
+  fetch: fetchClient, // fetchClient is compatible with native fetch
+});
+```
+
+**Real-world example with multiple clients:**
+
+```typescript
+import {
+  createFetchClient,
+  extractBodyMiddleware,
+  jsonResponseMiddleware,
+  httpErrorMiddleware,
+  requestQueueMiddleware,
+  tagSessionMiddleware,
+} from "@theplant/fetch-middleware";
+
+// Shared fetch config
+const defaultFetchConfig = {
+  fetchInit: {
+    credentials: "include" as const,
+    headers: {
+      Accept: "application/json",
+    },
+  },
+};
+
+// Create fetch client for Connect-RPC services
+const rpcFetchClient = createFetchClient({
+  ...defaultFetchConfig,
+  middlewares: [
+    sessionRefreshMiddleware,
+    tagSessionMiddleware(["/api.UserService/", "/api.OrderService/"], {
+      isProtected: true,
+    }),
+  ],
+});
+
+// Create fetch client for REST APIs
+const restFetchClient = createFetchClient({
+  fetchInit: { credentials: "include" },
+  middlewares: [
+    extractBodyMiddleware(),
+    jsonResponseMiddleware(),
+    httpErrorMiddleware(),
+    sessionRefreshMiddleware,
+  ],
+});
+
+// Use with Connect-RPC transport
+const transport = createConnectTransport({
+  baseUrl: API_BASE_URL,
+  fetch: rpcFetchClient,
+});
+
+// Use REST client directly
+const users = await restFetchClient.get("/api/users");
+```
+
 ## Design Principles
 
 ### Keep Response Native
