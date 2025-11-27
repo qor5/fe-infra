@@ -2,13 +2,6 @@
 
 The `requestQueueMiddleware` manages request queues for handling authentication refresh and automatic retry. It supports single or multiple queue configurations with **INDEPENDENT QUEUES**. Each config maintains its own queue state to avoid conflicts.
 
-> **Recommended:** For typical auth/session refresh flows, use
-> [`Auth Refresh Middleware`](./auth-refresh.md) instead of wiring
-> `requestQueueMiddleware` directly. The auth-refresh helpers build on
-> this queue engine and encapsulate common patterns (401 + expiry +
-> `_meta` filtering) while still using `requestQueueMiddleware`
-> internally.
-
 When a response matches the trigger condition (e.g., 401 unauthorized), this middleware:
 
 1. Cancels all other pending requests that match **THE SAME config** (unless ignored)
@@ -147,27 +140,6 @@ const transport = createConnectTransport({
 
 const client = createClient(UserService, transport);
 ```
-
-### Recommended: Use Auth Refresh Helpers
-
-For most authentication scenarios, you should not build `RequestQueueOptions`
-directly. Instead, prefer the high-level helpers described in
-[`auth-refresh.md`](./auth-refresh.md):
-
-- `createSessionRefreshMiddleware` (REST)
-- `createConnectSessionRefreshMiddleware` (Connect-RPC)
-
-These helpers:
-
-- Configure `queueTrigger` for you (401 + session expiry).
-- Wire the `handler` to your `refreshSession` implementation.
-- Provide sensible defaults for `ignore` / `_meta.isProtected`.
-- Still use `requestQueueMiddleware` under the hood, so all the behavior
-  documented on this page still applies.
-
-Only reach for `requestQueueMiddleware` directly if you have
-non-standard triggering logic or need multiple independent queues
-outside of authentication.
 
 ### Advanced Trigger Logic
 

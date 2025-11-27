@@ -54,8 +54,7 @@ const myMiddleware: Middleware = async (req, next, ctx) => {
 
 The library comes with several built-in middlewares. Click on each for detailed documentation:
 
-- **[Auth Refresh Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/auth-refresh.md)**: High-level helpers for handling authentication refresh and automatic retry for both REST and Connect-RPC. **Recommended entry point for auth/session handling.**
-- **[Request Queue Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/request-queue.md)**: Low-level queue engine used internally by auth-refresh. Useful only for advanced/custom flows.
+- **[Request Queue Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/request-queue.md)**: Low-level queue engine for request queuing. Useful for advanced/custom flows.
 - **[JSON Response Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/json-response.md)**: Parses JSON responses and attaches to `_body` property.
 - **[Extract Body Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/extract-body.md)**: Extracts `_body` from Response and returns it as the final result.
 - **[HTTP Error Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/http-error.md)**: Handles HTTP errors with a simple callback.
@@ -159,9 +158,99 @@ await client.getUser({ id: "123" });
 
 ## Error Handling
 
-### parseConnectError
+### REST API Errors
 
-Parse ConnectError into structured error information. Works with both Proto (ProTTP) and JSON (Connect) errors:
+For standard REST/fetch requests, use `httpErrorMiddleware` to handle HTTP errors. It automatically parses response body based on content-type (JSON/Text/Protobuf) and calls your error handler:
+
+```typescript
+import {
+  createFetchClient,
+  httpErrorMiddleware,
+} from "@theplant/fetch-middleware";
+
+const client = createFetchClient({
+  baseUrl: "https://api.example.com",
+  middlewares: [
+    httpErrorMiddleware({
+      onError: ({ status, body, url }) => {
+        const message = body?.message || body?.error || `Error ${status}`;
+
+        switch (status) {
+          case 401:
+            window.location.href = "/login";
+            break;
+          case 422:
+            // Validation error
+            console.log(body?.errors);
+            break;
+          case 500:
+            console.error("Server error:", message);
+            break;
+        }
+      },
+      throwError: true, // Default: throw error after handling
+    }),
+  ],
+});
+```
+
+The error thrown by `httpErrorMiddleware` contains:
+
+- `error.status` - HTTP status code
+- `error.body` - Parsed response body
+- `error.response` - Native Response object
+- `error.url` - Request URL
+
+#### Catching Errors in Individual API Calls
+
+In addition to global error handling in middleware, you can also catch errors at individual API call sites using try-catch:
+
+```typescript
+// Global middleware handles common errors (401 redirect, toast notifications, etc.)
+const client = createFetchClient({
+  baseUrl: "https://api.example.com",
+  middlewares: [
+    httpErrorMiddleware({
+      onError: ({ status }) => {
+        if (status === 401) window.location.href = "/login";
+      },
+    }),
+  ],
+});
+
+// Catch specific errors at call site for custom handling
+async function updateUser(id: string, data: UserData) {
+  try {
+    return await client.put(`/users/${id}`, data);
+  } catch (err: any) {
+    if (err.status === 422) {
+      // Handle validation error specifically for this form
+      return { errors: err.body?.errors };
+    }
+    if (err.status === 409) {
+      // Handle conflict error
+      return { conflict: true };
+    }
+    // Re-throw other errors to be handled by global handler
+    throw err;
+  }
+}
+```
+
+> **Tip**: Use middleware `onError` for global error handling (auth redirects, toast notifications), and try-catch at call sites for business-specific error handling.
+
+---
+
+### Connect-RPC Errors
+
+Connect-RPC supports two error response formats:
+
+- **JSON (Connect)**: Standard Connect protocol, errors are automatically parsed by `connect-es`
+- **Proto (ProTTP)**: Binary protobuf format, requires `formatProtoErrorMiddleware` for typed error handling
+
+#### JSON Errors (Connect)
+
+For JSON format errors, `connect-es` handles parsing automatically. Use `parseConnectError` to extract structured error information:
 
 ```typescript
 import { parseConnectError } from "@theplant/fetch-middleware";
@@ -175,12 +264,33 @@ try {
 }
 ```
 
-### Typed Error Classes
+#### Proto Errors (ProTTP) with Typed Error Classes
 
-The library provides typed error classes for common HTTP errors:
+The library provides typed error classes for common HTTP errors. These errors are thrown by `formatProtoErrorMiddleware` when handling Proto (ProTTP) responses:
+
+| Error Class           | HTTP Status | Description                                       |
+| --------------------- | ----------- | ------------------------------------------------- |
+| `UnauthorizedError`   | 401         | Authentication required                           |
+| `AuthenticationError` | 403         | Permission denied                                 |
+| `NotFoundError`       | 404         | Resource not found                                |
+| `ValidationError`     | 422         | Validation failed (contains `errors.fieldErrors`) |
+| `ServiceError`        | 500+        | Server error                                      |
+| `AppError`            | Other       | Generic application error                         |
+
+> **Note**: These typed errors are only thrown when using `formatProtoErrorMiddleware`. Make sure to include it in your middleware chain.
 
 ```typescript
-import { UnauthorizedError, ValidationError } from "@theplant/fetch-middleware";
+import {
+  createFetchClient,
+  formatProtoErrorMiddleware,
+  UnauthorizedError,
+  ValidationError,
+} from "@theplant/fetch-middleware";
+
+// Must include formatProtoErrorMiddleware to get typed errors
+const client = createFetchClient({
+  middlewares: [formatProtoErrorMiddleware()],
+});
 
 try {
   await fetchData();

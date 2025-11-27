@@ -54,8 +54,7 @@ const myMiddleware: Middleware = async (req, next, ctx) => {
 
 本库包含多个内置中间件。点击下方链接查看详细文档（英文）：
 
-- **[Auth Refresh Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/auth-refresh.md)**：高层封装的认证刷新中间件，支持 REST 和 Connect-RPC，**推荐优先使用**。
-- **[Request Queue Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/request-queue.md)**：底层请求队列引擎，被 Auth Refresh 中间件内部使用，适合高级/自定义场景。
+- **[Request Queue Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/request-queue.md)**：底层请求队列引擎，适合高级/自定义场景。
 - **[JSON Response Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/json-response.md)**：解析 JSON 响应并附加到 `_body` 属性。
 - **[Extract Body Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/extract-body.md)**：从 Response 中提取 `_body` 并将其作为最终结果返回。
 - **[HTTP Error Middleware](https://github.com/theplant/qor5-fe-infra/blob/main/packages/fetch-middleware/docs/http-error.md)**：使用简单的回调处理 HTTP 错误。
@@ -159,9 +158,99 @@ await client.getUser({ id: "123" });
 
 ## 错误处理
 
-### parseConnectError
+### REST API 错误
 
-将 ConnectError 解析为结构化错误信息。适用于 Proto (ProTTP) 和 JSON (Connect) 错误：
+对于标准的 REST/fetch 请求，使用 `httpErrorMiddleware` 来处理 HTTP 错误。它会根据 content-type 自动解析响应体（JSON/Text/Protobuf）并调用你的错误处理器：
+
+```typescript
+import {
+  createFetchClient,
+  httpErrorMiddleware,
+} from "@theplant/fetch-middleware";
+
+const client = createFetchClient({
+  baseUrl: "https://api.example.com",
+  middlewares: [
+    httpErrorMiddleware({
+      onError: ({ status, body, url }) => {
+        const message = body?.message || body?.error || `Error ${status}`;
+
+        switch (status) {
+          case 401:
+            window.location.href = "/login";
+            break;
+          case 422:
+            // 验证错误
+            console.log(body?.errors);
+            break;
+          case 500:
+            console.error("服务器错误:", message);
+            break;
+        }
+      },
+      throwError: true, // 默认: 处理后抛出错误
+    }),
+  ],
+});
+```
+
+`httpErrorMiddleware` 抛出的错误包含：
+
+- `error.status` - HTTP 状态码
+- `error.body` - 解析后的响应体
+- `error.response` - 原生 Response 对象
+- `error.url` - 请求 URL
+
+#### 在单独 API 调用中捕获错误
+
+除了在中间件中全局处理错误，你也可以在单独的 API 调用处使用 try-catch 捕获错误：
+
+```typescript
+// 全局中间件处理通用错误（401 重定向、toast 提示等）
+const client = createFetchClient({
+  baseUrl: "https://api.example.com",
+  middlewares: [
+    httpErrorMiddleware({
+      onError: ({ status }) => {
+        if (status === 401) window.location.href = "/login";
+      },
+    }),
+  ],
+});
+
+// 在调用处捕获特定错误进行自定义处理
+async function updateUser(id: string, data: UserData) {
+  try {
+    return await client.put(`/users/${id}`, data);
+  } catch (err: any) {
+    if (err.status === 422) {
+      // 针对此表单处理验证错误
+      return { errors: err.body?.errors };
+    }
+    if (err.status === 409) {
+      // 处理冲突错误
+      return { conflict: true };
+    }
+    // 重新抛出其他错误，由全局处理器处理
+    throw err;
+  }
+}
+```
+
+> **提示**：使用中间件 `onError` 处理全局错误（认证重定向、toast 提示），在调用处使用 try-catch 处理业务特定的错误。
+
+---
+
+### Connect-RPC 错误
+
+Connect-RPC 支持两种错误响应格式：
+
+- **JSON (Connect)**：标准 Connect 协议，错误由 `connect-es` 自动解析
+- **Proto (ProTTP)**：二进制 protobuf 格式，需要 `formatProtoErrorMiddleware` 来获得类型化错误处理
+
+#### JSON 错误 (Connect)
+
+对于 JSON 格式的错误，`connect-es` 会自动处理解析。使用 `parseConnectError` 提取结构化错误信息：
 
 ```typescript
 import { parseConnectError } from "@theplant/fetch-middleware";
@@ -175,12 +264,33 @@ try {
 }
 ```
 
-### 类型化错误类
+#### Proto 错误 (ProTTP) 与类型化错误类
 
-该库为常见的 HTTP 错误提供类型化错误类：
+该库为常见的 HTTP 错误提供类型化错误类。这些错误由 `formatProtoErrorMiddleware` 在处理 Proto (ProTTP) 响应时抛出：
+
+| 错误类                | HTTP 状态码 | 描述                                  |
+| --------------------- | ----------- | ------------------------------------- |
+| `UnauthorizedError`   | 401         | 需要认证                              |
+| `AuthenticationError` | 403         | 权限不足                              |
+| `NotFoundError`       | 404         | 资源未找到                            |
+| `ValidationError`     | 422         | 验证失败（包含 `errors.fieldErrors`） |
+| `ServiceError`        | 500+        | 服务器错误                            |
+| `AppError`            | 其他        | 通用应用错误                          |
+
+> **注意**：这些类型化错误只有在使用 `formatProtoErrorMiddleware` 时才会被抛出。请确保在中间件链中包含它。
 
 ```typescript
-import { UnauthorizedError, ValidationError } from "@theplant/fetch-middleware";
+import {
+  createFetchClient,
+  formatProtoErrorMiddleware,
+  UnauthorizedError,
+  ValidationError,
+} from "@theplant/fetch-middleware";
+
+// 必须包含 formatProtoErrorMiddleware 才能获得类型化错误
+const client = createFetchClient({
+  middlewares: [formatProtoErrorMiddleware()],
+});
 
 try {
   await fetchData();
