@@ -2,7 +2,7 @@ import { fromBinary } from "@bufbuild/protobuf";
 import type { JsonValue } from "@bufbuild/protobuf";
 import type { ValidationError as TValidationError } from "../proto/spec_pb";
 import { ValidationErrorSchema } from "../proto/spec_pb";
-import { ConnectError, Code } from "@connectrpc/connect";
+import { ConnectError } from "@connectrpc/connect";
 import {
   errorFromJson,
   codeFromString,
