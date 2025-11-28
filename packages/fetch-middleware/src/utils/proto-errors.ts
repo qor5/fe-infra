@@ -1,7 +1,12 @@
 import { fromBinary } from "@bufbuild/protobuf";
+import type { JsonValue } from "@bufbuild/protobuf";
 import type { ValidationError as TValidationError } from "../proto/spec_pb";
 import { ValidationErrorSchema } from "../proto/spec_pb";
-import { ConnectError } from "@connectrpc/connect";
+import { ConnectError, Code } from "@connectrpc/connect";
+import {
+  errorFromJson,
+  codeFromString,
+} from "@connectrpc/connect/protocol-connect";
 import {
   ErrorInfoSchema,
   BadRequestSchema,
@@ -130,27 +135,77 @@ export class NetworkError extends Error {
 }
 
 /**
+ * Check if input is a Connect JSON error body
+ * Connect JSON format: { code: string, message: string, details?: [...] }
+ */
+function isConnectJsonBody(
+  input: unknown,
+): input is { code: string; message: string; details?: unknown[] } {
+  return (
+    typeof input === "object" &&
+    input !== null &&
+    "code" in input &&
+    typeof (input as Record<string, unknown>).code === "string" &&
+    "message" in input &&
+    !(input instanceof Error)
+  );
+}
+
+/**
  * Parse ConnectError into structured error information
  * Similar to the error handling in ConnectComponent.tsx
+ *
+ * Supports two input types:
+ * - ConnectError object (thrown by connect-es): Uses findDetails() to extract info
+ * - Connect JSON body (from httpErrorMiddleware): Converts to ConnectError first
  *
  * For Proto errors (ProTTP): Extracts ValidationError from custom error classes
  * For JSON errors (Connect): Uses ConnectError.findDetails to extract error info
  *
  * @example
  * ```ts
+ * // From catch block (ConnectError)
  * try {
  *   await client.login(credentials)
  * } catch (err) {
  *   const parsed = parseConnectError(err)
- *   console.log(parsed.code)              // Connect error code
- *   console.log(parsed.message)           // Error message
- *   console.log(parsed.validationError)   // ValidationError (if available)
+ *   console.log(parsed.localizedMessage)
+ * }
+ *
+ * // From httpErrorMiddleware (JSON body)
+ * onError: ({ body }) => {
+ *   const parsed = parseConnectError(body)
+ *   console.log(parsed.localizedMessage)
  * }
  * ```
  */
-export function parseConnectError(err: any) {
-  // Convert any error to ConnectError
-  // This wraps our custom errors and preserves them in the cause chain
+export function parseConnectError(err: unknown) {
+  // Handle JSON body (from httpErrorMiddleware onError callback)
+  // Use connect-es's errorFromJson to create a proper ConnectError
+  if (isConnectJsonBody(err)) {
+    // Create a fallback error for errorFromJson
+    const fallback = new ConnectError(
+      err.message || "Unknown error",
+      codeFromString(err.code),
+    );
+    // Use connect-es's internal errorFromJson to properly parse the JSON
+    // This handles the Connect JSON format with base64-encoded detail values
+    const connectErr = errorFromJson(err as JsonValue, undefined, fallback);
+    return {
+      code: connectErr.code,
+      message: connectErr.message,
+      localizedMessage: connectErr.findDetails(LocalizedMessageSchema)[0]
+        ?.message,
+      errorInfo: connectErr.findDetails(ErrorInfoSchema)[0],
+      badRequest: connectErr.findDetails(BadRequestSchema)[0],
+      details: connectErr.details,
+      cause: connectErr.cause,
+    };
+  }
+
+  // Handle ConnectError object (from connect-es catch block)
+  // connect-es has already deserialized the details from the response,
+  // so findDetails() works correctly
   const connectErr = ConnectError.from(err);
   return {
     code: connectErr.code,
@@ -159,6 +214,7 @@ export function parseConnectError(err: any) {
       ?.message,
     errorInfo: connectErr.findDetails(ErrorInfoSchema)[0],
     badRequest: connectErr.findDetails(BadRequestSchema)[0],
+    details: connectErr.details,
     cause: connectErr.cause,
   };
 }
