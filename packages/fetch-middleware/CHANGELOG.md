@@ -1,5 +1,15 @@
 # @theplant/fetch-middleware
 
+## 0.4.2
+
+### Patch Changes
+
+- [#39](https://github.com/theplant/qor5-fe-infra/pull/39) [`db1180a`](https://github.com/theplant/qor5-fe-infra/commit/db1180a40336042913f9c9f3309705d56fc4946b) Thanks [@danni-cool](https://github.com/danni-cool)! - `parseConnectError` now supports Connect JSON body input (from `httpErrorMiddleware` `onError` callback), in addition to `ConnectError` objects.
+
+  Uses connect-es official `errorFromJson` and `codeFromString` to properly parse Connect JSON format with base64-encoded details.
+
+  `tagSessionMiddleware` now supports `['*']` in endpoints array to match all URLs. This is useful when you want to tag all requests (e.g., mark all as protected) without specifying individual endpoint patterns.
+
 ## 0.4.1
 
 ### Patch Changes
