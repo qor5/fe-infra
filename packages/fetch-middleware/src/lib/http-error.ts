@@ -88,6 +88,8 @@ export interface HttpErrorInfo {
   body?: any;
   /** Native Response object */
   response: Response;
+  /** Request metadata */
+  _meta?: Record<string, any>;
 }
 
 /**
@@ -121,6 +123,8 @@ export interface HttpErrorMiddlewareOptions {
    * If not provided, protobuf responses will be parsed as UTF-8 text
    */
   protobufParser?: (buffer: ArrayBuffer) => any | Promise<any>;
+
+  _meta?: Record<string, any>;
 }
 
 /**
@@ -255,6 +259,7 @@ export function httpErrorMiddleware(
         url: req.url,
         body,
         response: res as Response,
+        _meta: req._meta,
       };
 
       // Call error handler (skip if request was aborted)
