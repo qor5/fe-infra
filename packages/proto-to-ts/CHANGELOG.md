@@ -1,5 +1,28 @@
 # @theplant/proto-to-ts
 
+## 0.1.2
+
+### Patch Changes
+
+- [#41](https://github.com/theplant/qor5-fe-infra/pull/41) [`a4f71fe`](https://github.com/theplant/qor5-fe-infra/commit/a4f71fe1d60f4e028a51433e12408e16f25ec0ea) Thanks [@danni-cool](https://github.com/danni-cool)! - ### New Features
+  - **Exclude Admin Services**: Added `excludeServicePatterns` configuration to exclude services from client generation based on service name patterns.
+    - Default: `["AdminService"]` - automatically excludes all services containing "AdminService" in their name (e.g., `UserAdminService`, `CampaignAdminService`)
+    - Set to `[]` to include all services
+    - Useful for excluding internal admin APIs from public frontend SDKs
+
+  ### Configuration
+
+  ```javascript
+  export default {
+    // ... other config
+
+    // Exclude services from client generation
+    // Matches proto service names like: service UserAdminService { ... }
+    // Set to [] to include all services
+    excludeServicePatterns: ["AdminService"],
+  };
+  ```
+
 ## 0.1.1
 
 ### Patch Changes
