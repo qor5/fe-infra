@@ -46,6 +46,12 @@ export default {
 
   // Maximum history records to keep
   maxHistory: 10,
+
+  // Exclude services from client generation based on service name patterns
+  // Default: ["AdminService"] - excludes all services containing "AdminService" in their name
+  // Matches against proto service names like: service UserAdminService { ... }
+  // Set to [] (empty array) to disable default exclusion and include all services
+  // excludeServicePatterns: ['AdminService'], // default, can be omitted
 };
 
 /**

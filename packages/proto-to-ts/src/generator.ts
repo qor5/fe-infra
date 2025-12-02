@@ -23,6 +23,7 @@ export interface GeneratorOptions extends ProtoGenConfig {
   targetPath: string;
   validation: ValidationResult;
   workingDir: string;
+  excludeServicePatterns?: string[];
 }
 
 /**
@@ -39,6 +40,7 @@ export async function generateFromProto(
     servicesDir,
     moduleName,
     rpcServiceDir,
+    excludeServicePatterns,
   } = options;
 
   console.log("\n🔄 Starting API generation workflow...\n");
@@ -187,6 +189,7 @@ export async function generateFromProto(
           resolvedOutputDir,
           resolvedServicesDir,
           moduleName,
+          excludeServicePatterns,
         );
       }
     }

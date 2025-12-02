@@ -6,37 +6,45 @@ import path from "path";
 import type { ServiceInfo, MethodInfo } from "../types";
 
 /**
- * Extract service name and methods from service file
+ * Extract all services from a service file
+ * A single _pb.ts file may contain multiple services (e.g., CampaignService and CampaignAdminService)
  */
-export function extractServiceInfo(
+export function extractAllServiceInfo(
   filePath: string,
   generatedDir: string,
-): ServiceInfo | null {
+): ServiceInfo[] {
+  const services: ServiceInfo[] = [];
+
   try {
     const content = fs.readFileSync(filePath, "utf-8");
 
-    // Match service definition: export const ServiceName: GenService<{ ... }> = ...
-    const serviceMatch = content.match(
-      /export const (\w+):\s*GenService<{([\s\S]*?)}>\s*=/,
-    );
+    // Extract imports mapping (shared across all services in the file)
+    const imports: Record<string, string> = {};
+    const importRegex =
+      /import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+["']([^"']+)["']/g;
+    let importMatch;
+    while ((importMatch = importRegex.exec(content)) !== null) {
+      const symbols = importMatch[1].split(",").map((s) => s.trim());
+      const source = importMatch[2];
+      symbols.forEach((s) => {
+        if (s) imports[s] = source;
+      });
+    }
 
-    if (serviceMatch) {
+    // Get relative path from generated directory
+    const relativePath = path
+      .relative(generatedDir, filePath)
+      .replace(/\\/g, "/")
+      .replace(/\.ts$/, "");
+
+    // Match ALL service definitions: export const ServiceName: GenService<{ ... }> = ...
+    const serviceRegex = /export const (\w+):\s*GenService<{([\s\S]*?)}>\s*=/g;
+    let serviceMatch;
+
+    while ((serviceMatch = serviceRegex.exec(content)) !== null) {
       const serviceName = serviceMatch[1];
       const methodsBody = serviceMatch[2];
       const methods: MethodInfo[] = [];
-
-      // Extract imports mapping
-      const imports: Record<string, string> = {};
-      const importRegex =
-        /import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+["']([^"']+)["']/g;
-      let importMatch;
-      while ((importMatch = importRegex.exec(content)) !== null) {
-        const symbols = importMatch[1].split(",").map((s) => s.trim());
-        const source = importMatch[2];
-        symbols.forEach((s) => {
-          if (s) imports[s] = source;
-        });
-      }
 
       // Extract methods using regex
       // Matches: methodName: { ... input: typeof InputSchema; output: typeof OutputSchema; ... }
@@ -54,18 +62,30 @@ export function extractServiceInfo(
         });
       }
 
-      // Get relative path from generated directory
-      const relativePath = path
-        .relative(generatedDir, filePath)
-        .replace(/\\/g, "/")
-        .replace(/\.ts$/, "");
-
-      return { serviceName, importPath: relativePath, methods, imports };
+      services.push({
+        serviceName,
+        importPath: relativePath,
+        methods,
+        imports,
+      });
     }
   } catch (error) {
     console.warn(`⚠️  Warning: Could not parse ${filePath}`, error);
   }
-  return null;
+
+  return services;
+}
+
+/**
+ * Extract service name and methods from service file (legacy, returns first service only)
+ * @deprecated Use extractAllServiceInfo instead
+ */
+export function extractServiceInfo(
+  filePath: string,
+  generatedDir: string,
+): ServiceInfo | null {
+  const services = extractAllServiceInfo(filePath, generatedDir);
+  return services.length > 0 ? services[0] : null;
 }
 
 /**
@@ -219,6 +239,39 @@ ${services
 // generateServicesTypesFile is removed as it is no longer needed
 
 /**
+ * Check if a service name should be excluded based on patterns
+ *
+ * This function matches against the proto service name (e.g., "UserAdminService", "CampaignService")
+ * Pattern examples:
+ *   - "Admin" matches: UserAdminService, AdminService, ProductAdminService
+ *   - "Admin$" matches: only services ending with "Admin" (not "AdminService")
+ *   - "^Admin" matches: only services starting with "Admin"
+ *
+ * @param serviceName - The service name from proto definition (e.g., "UserAdminService")
+ * @param excludePatterns - Array of regex patterns to match against service names
+ */
+function shouldExcludeService(
+  serviceName: string,
+  excludePatterns?: string[],
+): boolean {
+  if (!excludePatterns || excludePatterns.length === 0) {
+    return false;
+  }
+
+  return excludePatterns.some((pattern) => {
+    try {
+      // Use regex to match service name
+      // Pattern "Admin" will match any service containing "Admin" in its name
+      const regex = new RegExp(pattern);
+      return regex.test(serviceName);
+    } catch {
+      // If pattern is not a valid regex, treat it as a simple substring match
+      return serviceName.includes(pattern);
+    }
+  });
+}
+
+/**
  * Generate service wrappers from scanned files
  */
 export async function generateServiceWrappers(
@@ -226,6 +279,7 @@ export async function generateServiceWrappers(
   generatedDir: string,
   servicesDir: string,
   moduleName?: string,
+  excludeServicePatterns?: string[],
 ): Promise<void> {
   // Ensure services directory exists
   if (!fs.existsSync(servicesDir)) {
@@ -247,20 +301,33 @@ export async function generateServiceWrappers(
       continue;
     }
 
-    const serviceInfo = extractServiceInfo(filePath, generatedDir);
-    if (!serviceInfo) continue;
+    // Extract ALL services from this file (a single _pb.ts may contain multiple services)
+    const allServices = extractAllServiceInfo(filePath, generatedDir);
+    if (allServices.length === 0) continue;
 
-    // Extract clean name (remove "Service" suffix if present)
-    const cleanName = serviceInfo.serviceName.replace(/Service$/, "");
-    const camelName = cleanName.charAt(0).toLowerCase() + cleanName.slice(1);
+    for (const serviceInfo of allServices) {
+      // Check if service should be excluded based on patterns
+      if (
+        shouldExcludeService(serviceInfo.serviceName, excludeServicePatterns)
+      ) {
+        console.log(
+          `   ⏭️  Skipped ${serviceInfo.serviceName} (matches exclude pattern)`,
+        );
+        continue;
+      }
 
-    const code = generateServiceWrapper(cleanName, serviceInfo, moduleName);
+      // Extract clean name (remove "Service" suffix if present)
+      const cleanName = serviceInfo.serviceName.replace(/Service$/, "");
+      const camelName = cleanName.charAt(0).toLowerCase() + cleanName.slice(1);
 
-    const outputPath = path.join(servicesDir, `${camelName}.client.ts`);
-    fs.writeFileSync(outputPath, code);
-    console.log(`   ✅ Generated ${cleanName} client`);
+      const code = generateServiceWrapper(cleanName, serviceInfo, moduleName);
 
-    generatedServices.push({ name: cleanName, camelName });
+      const outputPath = path.join(servicesDir, `${camelName}.client.ts`);
+      fs.writeFileSync(outputPath, code);
+      console.log(`   ✅ Generated ${cleanName} client`);
+
+      generatedServices.push({ name: cleanName, camelName });
+    }
   }
 
   // Generate services index file (Clients and Types)

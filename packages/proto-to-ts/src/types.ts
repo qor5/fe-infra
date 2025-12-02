@@ -29,6 +29,12 @@ export interface ProtoGenConfig {
   bufGenTemplate?: string;
   // Additional buf modules to include in inputs
   additionalModules?: string[];
+  // Regex patterns to exclude services from client generation
+  // Matches against proto service names (e.g., "UserAdminService", "CampaignService")
+  // Default: ["AdminService"] - excludes all services containing "AdminService" in their name
+  // Set to [] (empty array) to disable default exclusion
+  // These patterns are matched against the service name defined in proto: `service XxxAdminService { ... }`
+  excludeServicePatterns?: string[];
 }
 
 export interface ValidationResult {
