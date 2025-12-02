@@ -17,6 +17,8 @@ const defaultConfig = {
   servicesDir: "src/lib/api/services",
   historyFile: ".proto-to-ts-history.json",
   maxHistory: 10,
+  // Exclude admin services by default
+  excludeServicePatterns: ["AdminService"],
 };
 
 // Check for --init flag
@@ -45,6 +47,11 @@ export default {
 
   // Maximum number of history records to keep
   maxHistory: 10,
+
+  // Exclude services from client generation based on service name patterns
+  // Matches proto service names like: service UserAdminService { ... }
+  // Set to [] to include all services
+  excludeServicePatterns: ['AdminService'],
 }
 `;
 

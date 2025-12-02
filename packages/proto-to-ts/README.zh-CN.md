@@ -75,6 +75,12 @@ export default {
 
   // 保存的历史记录最大数量（默认：10）
   maxHistory: 10,
+
+  // 排除服务，不生成客户端
+  // 默认值: ["AdminService"] - 排除所有服务名包含 "AdminService" 的服务
+  // 匹配 proto 中定义的服务名，如: service UserAdminService { ... }
+  // 设置为 [] (空数组) 可禁用默认排除，生成所有服务
+  // excludeServicePatterns: ['AdminService'], // 默认值，可省略
 };
 ```
 
