@@ -4,64 +4,77 @@
 
 /**
  * Generate connect-client.ts content
+ * This version uses lazy initialization pattern to allow external configuration
  */
 export function generateConnectClientTemplate(): string {
   return `/**
- * API Client configuration for Connect-RPC
- * Using @theplant/fetch-middleware for advanced request/response handling
- * Reference: https://github.com/qor5/fe-infra/tree/main/packages/fetch-middleware
+ * Shared Connect-RPC transport configuration
+ *
+ * This module provides the configured transport used by all service clients.
+ * The transport is configured via initializeTransport() which should be called
+ * before using any service clients.
  */
-import type { Interceptor } from '@connectrpc/connect'
+
 import { createConnectTransport } from '@connectrpc/connect-web'
-import {
-  createFetchClient,
-  formatProtoErrorMiddleware,
-} from '@theplant/fetch-middleware'
-
-// Use binary format (protobuf) instead of JSON
-const useBinaryFormat = false
-
-// API base URL from environment
-const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) || ''
-
-// Create fetch client for Connect-RPC
-export const connectFetchClient = createFetchClient({
-  fetchInit: {
-    credentials: 'include',
-    headers: {
-      Accept: useBinaryFormat ? 'application/proto' : 'application/json',
-      // Ensure server returns Connect standard error format with Details
-      'X-Ensure-Connect-Error': 'true',
-    },
-  },
-  middlewares: [formatProtoErrorMiddleware()],
-})
+import type { Transport, Interceptor } from '@connectrpc/connect'
 
 /**
- * Error interceptor for global error handling
- * Catches all Connect-RPC errors and displays toast notifications
+ * Shared transport instance
+ * Must be initialized via initializeTransport() before use
  */
-const errorInterceptor: Interceptor = (next) => async (req) => {
-  try {
-    return await next(req)
-  } catch (err) {
-    // You can add custom error handling here
-    // For example: toast notification, logging, etc.
-    throw err
-  }
+let transportInstance: Transport | null = null
+
+/**
+ * Initialize the shared transport with custom configuration
+ *
+ * @param config - Transport configuration
+ * @param config.baseUrl - Base URL for the service
+ * @param config.fetch - Custom fetch function with middleware support
+ * @param config.interceptors - Connect-RPC interceptors
+ */
+export function initializeTransport(config: {
+  baseUrl?: string
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+  interceptors?: Interceptor[]
+}): void {
+  const { baseUrl, fetch, interceptors = [] } = config
+
+  transportInstance = createConnectTransport({
+    baseUrl: baseUrl || '',
+    fetch,
+    interceptors,
+  })
 }
 
 /**
- * Create Connect transport with the fetch client
- * This transport is used by all Connect-RPC service clients
+ * Get the shared transport instance
+ * Throws error if transport is not initialized
  */
-export const transport = createConnectTransport({
-  baseUrl: API_BASE_URL,
-  useBinaryFormat,
-  fetch: connectFetchClient, // Pass as fetch handler
-  interceptors: [errorInterceptor], // Add global error interceptor
-})
+export function getTransport(): Transport {
+  if (!transportInstance) {
+    throw new Error(
+      'Transport not initialized. Call initializeTransport() before using service clients.'
+    )
+  }
+  return transportInstance
+}
+
+/**
+ * Proxy-based transport export for backward compatibility
+ * Allows using \`transport\` directly without calling getTransport()
+ */
+export const transport: Transport = new Proxy({} as Transport, {
+  get(target, prop) {
+    return Reflect.get(getTransport(), prop)
+  },
+}) as Transport
+
+/**
+ * Reset the transport (useful for testing)
+ */
+export function resetTransport(): void {
+  transportInstance = null
+}
 `;
 }
 

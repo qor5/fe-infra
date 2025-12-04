@@ -10,6 +10,7 @@ Interactive Protobuf to TypeScript code generation tool with Connect-RPC support
 - 🎨 **Template Configuration** - Automatically extracts dependencies from `buf.yaml` to generate `buf.gen.yaml`
 - 🔍 **JSON Name Support** - Automatically applies protobuf `json_name` mappings
 - 📦 **Service Wrappers** - Optional generation of Connect-RPC service client wrappers
+- 🏷️ **Types Namespace** - Auto-aggregated types with IDE auto-completion support
 
 ## Installation
 
@@ -94,8 +95,86 @@ export default {
    - Run `buf generate` to generate TypeScript code.
    - Apply `json_name` mappings.
    - Generate service client wrappers (if configured).
+   - Generate types aggregation file for IDE auto-completion.
 
 ## Generated Content
+
+### Directory Structure
+
+```
+src/lib/api/rpc-service/
+  pim/                      # Module name
+    generated/              # Protobuf generated files
+    services/               # Service client wrappers
+      index.ts
+      product.client.ts
+    types/                  # Aggregated types for IDE auto-completion
+      index.ts
+  connect-client.ts         # Shared transport configuration
+  index.ts                  # Module exports
+```
+
+### Transport Initialization
+
+The generated `connect-client.ts` uses lazy initialization. You must call `initializeTransport()` before using any service clients:
+
+```typescript
+// src/lib/api/index.ts
+import { createFetchClient } from "@theplant/fetch-middleware";
+import { initializeTransport } from "./rpc-service/connect-client";
+
+// Initialize transport with your custom fetch configuration
+initializeTransport({
+  baseUrl: import.meta.env.VITE_API_BASE_URL || "",
+  fetch: createFetchClient({
+    fetchInit: {
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "X-Ensure-Connect-Error": "true",
+      },
+    },
+    middlewares: [
+      // Add your middlewares here
+      // e.g., errorMiddleware, sessionMiddleware, etc.
+    ],
+  }),
+});
+
+// Export all RPC service clients
+export * from "./rpc-service";
+```
+
+### Using Service Clients
+
+```typescript
+import { pimService } from '@/lib/api'
+
+// Call service methods
+const response = await pimService.productClient.listProducts({
+  filter: { ... },
+  pagination: { first: 20 },
+})
+```
+
+### Using Types with IDE Auto-completion
+
+All protobuf types are aggregated in the `types` namespace, enabling full IDE auto-completion:
+
+```typescript
+import { pimService } from "@/lib/api";
+
+// ✅ IDE auto-completion works: pimService.types.ProductFilter, pimService.types.Product, etc.
+const filter: pimService.types.ProductFilter = {
+  priceInclTax: { gte: 100, lte: 500 },
+};
+
+// Use with service methods
+const response = await pimService.productClient.listProducts({ filter });
+
+// Access response types
+const products: pimService.types.Product[] = response.edges.map((e) => e.node);
+```
 
 ### TypeScript Types and Clients
 
@@ -104,15 +183,15 @@ The tool uses the following plugins to generate code:
 - `@bufbuild/protoc-gen-es` - Generates TypeScript message types.
 - `@connectrpc/protoc-gen-connect-es` - Generates Connect-RPC service clients.
 
-### Service Wrappers (Optional)
+### Service Wrappers
 
 If `servicesDir` is configured, the tool generates wrapper clients for each service:
 
 ```typescript
 // Example: product.client.ts
 import { createClient, type Client } from "@connectrpc/connect";
-import { ProductService } from "../generated/pim/product/v1/service_connect";
-import { transport } from "../connect-client";
+import { ProductService } from "../generated/pim/product/v1/service_pb";
+import { transport } from "../../connect-client";
 
 export const productClient: Client<typeof ProductService> = createClient(
   ProductService,
@@ -120,20 +199,15 @@ export const productClient: Client<typeof ProductService> = createClient(
 );
 ```
 
-And an index file:
+And an index file with types namespace:
 
 ```typescript
 // services/index.ts
-export { productClient } from "./product.client";
-export { userClient } from "./user.client";
+export { productClient, type ProductClient } from "./product.client";
+
+// Export types namespace for IDE auto-completion
+export * as types from "../types";
 ```
-
-### Connect Client Setup (First Run)
-
-On the first run, the tool can automatically generate the necessary Connect client setup files if they don't exist:
-
-- `connect-client.ts`: Configures the transport with `fetch-middleware`.
-- `handlers/connect-error-handler.ts`: Standard error handling utility.
 
 ## API
 
