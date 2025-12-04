@@ -10,6 +10,7 @@
 - 🎨 **模板化配置** - 自动从 `buf.yaml` 提取依赖生成 `buf.gen.yaml`
 - 🔍 **JSON Name 支持** - 自动应用 protobuf 的 `json_name` 映射
 - 📦 **服务包装器** - 可选的 Connect-RPC 服务客户端包装器生成
+- 🏷️ **类型命名空间** - 自动聚合类型，支持 IDE 自动补全
 
 ## 安装
 
@@ -94,8 +95,86 @@ export default {
    - 运行 `buf generate` 生成 TypeScript 代码。
    - 应用 `json_name` 映射。
    - 生成服务客户端包装器（如果配置了）。
+   - 生成类型聚合文件，支持 IDE 自动补全。
 
 ## 生成的内容
+
+### 目录结构
+
+```
+src/lib/api/rpc-service/
+  pim/                      # 模块名
+    generated/              # Protobuf 生成的文件
+    services/               # 服务客户端包装器
+      index.ts
+      product.client.ts
+    types/                  # 聚合的类型，支持 IDE 自动补全
+      index.ts
+  connect-client.ts         # 共享的 transport 配置
+  index.ts                  # 模块导出
+```
+
+### Transport 初始化
+
+生成的 `connect-client.ts` 使用延迟初始化模式。在使用任何服务客户端之前，必须调用 `initializeTransport()`：
+
+```typescript
+// src/lib/api/index.ts
+import { createFetchClient } from "@theplant/fetch-middleware";
+import { initializeTransport } from "./rpc-service/connect-client";
+
+// 使用自定义的 fetch 配置初始化 transport
+initializeTransport({
+  baseUrl: import.meta.env.VITE_API_BASE_URL || "",
+  fetch: createFetchClient({
+    fetchInit: {
+      credentials: "include",
+      headers: {
+        Accept: "application/json",
+        "X-Ensure-Connect-Error": "true",
+      },
+    },
+    middlewares: [
+      // 添加你的中间件
+      // 例如：errorMiddleware, sessionMiddleware 等
+    ],
+  }),
+});
+
+// 导出所有 RPC 服务客户端
+export * from "./rpc-service";
+```
+
+### 使用服务客户端
+
+```typescript
+import { pimService } from '@/lib/api'
+
+// 调用服务方法
+const response = await pimService.productClient.listProducts({
+  filter: { ... },
+  pagination: { first: 20 },
+})
+```
+
+### 使用类型（支持 IDE 自动补全）
+
+所有 protobuf 类型都聚合在 `types` 命名空间中，支持完整的 IDE 自动补全：
+
+```typescript
+import { pimService } from "@/lib/api";
+
+// ✅ IDE 自动补全生效：pimService.types.ProductFilter, pimService.types.Product 等
+const filter: pimService.types.ProductFilter = {
+  priceInclTax: { gte: 100, lte: 500 },
+};
+
+// 与服务方法一起使用
+const response = await pimService.productClient.listProducts({ filter });
+
+// 访问响应类型
+const products: pimService.types.Product[] = response.edges.map((e) => e.node);
+```
 
 ### TypeScript 类型和客户端
 
@@ -104,15 +183,15 @@ export default {
 - `@bufbuild/protoc-gen-es` - 生成 TypeScript 消息类型。
 - `@connectrpc/protoc-gen-connect-es` - 生成 Connect-RPC 服务客户端。
 
-### 服务包装器（可选）
+### 服务包装器
 
 如果配置了 `servicesDir`，工具会为每个服务生成包装器客户端：
 
 ```typescript
 // 示例：product.client.ts
 import { createClient, type Client } from "@connectrpc/connect";
-import { ProductService } from "../generated/pim/product/v1/service_connect";
-import { transport } from "../connect-client";
+import { ProductService } from "../generated/pim/product/v1/service_pb";
+import { transport } from "../../connect-client";
 
 export const productClient: Client<typeof ProductService> = createClient(
   ProductService,
@@ -120,20 +199,15 @@ export const productClient: Client<typeof ProductService> = createClient(
 );
 ```
 
-以及索引文件：
+以及包含类型命名空间的索引文件：
 
 ```typescript
 // services/index.ts
-export { productClient } from "./product.client";
-export { userClient } from "./user.client";
+export { productClient, type ProductClient } from "./product.client";
+
+// 导出类型命名空间，支持 IDE 自动补全
+export * as types from "../types";
 ```
-
-### Connect 客户端设置（首次运行）
-
-首次运行时，如果文件不存在，工具可以自动生成必要的 Connect 客户端设置文件：
-
-- `connect-client.ts`: 配置包含 `fetch-middleware` 的 transport。
-- `handlers/connect-error-handler.ts`: 标准错误处理工具。
 
 ## API
 

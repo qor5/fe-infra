@@ -15,7 +15,11 @@ import {
   extractBufDependencies,
 } from "./utils/proto-scanner.js";
 import { applyJsonNameMappings } from "./utils/json-name.js";
-import { generateServiceWrappers } from "./utils/service-wrapper.js";
+import {
+  generateServiceWrappers,
+  findAllTypeFiles,
+  generateTypesIndexFile,
+} from "./utils/service-wrapper.js";
 
 const execAsync = promisify(exec);
 
@@ -106,6 +110,16 @@ export async function generateFromProto(
         fs.rmSync(resolvedCleanServicesDir, { recursive: true, force: true });
         console.log(`   Deleted: ${resolvedCleanServicesDir}`);
       }
+
+      // Also clean types directory (sibling to services)
+      const resolvedCleanTypesDir = path.join(
+        path.dirname(resolvedCleanServicesDir),
+        "types",
+      );
+      if (fs.existsSync(resolvedCleanTypesDir)) {
+        fs.rmSync(resolvedCleanTypesDir, { recursive: true, force: true });
+        console.log(`   Deleted: ${resolvedCleanTypesDir}`);
+      }
     }
 
     // Step 2: Generate Connect-RPC clients from protobuf using buf
@@ -191,6 +205,30 @@ export async function generateFromProto(
           moduleName,
           excludeServicePatterns,
         );
+
+        // Step 4.5: Generate types aggregation file
+        // This enables IDE auto-completion for pimService.types.*
+        console.log("\n📝 Step 4.5: Generating types aggregation...");
+        const typeFiles = findAllTypeFiles(resolvedOutputDir);
+        if (typeFiles.length > 0) {
+          // Types directory is sibling to services directory
+          const typesDir = path.join(
+            path.dirname(resolvedServicesDir),
+            "types",
+          );
+          if (!fs.existsSync(typesDir)) {
+            fs.mkdirSync(typesDir, { recursive: true });
+          }
+
+          const typesIndexContent = generateTypesIndexFile(typeFiles);
+          const typesIndexPath = path.join(typesDir, "index.ts");
+          fs.writeFileSync(typesIndexPath, typesIndexContent);
+          console.log(
+            `   ✅ Generated types/index.ts (${typeFiles.length} type files)`,
+          );
+        } else {
+          console.log("   ⏭️  No type files found, skipping types aggregation");
+        }
       }
     }
 
