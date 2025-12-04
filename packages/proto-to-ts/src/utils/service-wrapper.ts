@@ -285,9 +285,6 @@ ${methods
 const client = createClient(${serviceName}, transport) as ${name}Client
 
 export const ${camelName}Client: ${name}Client = client
-
-// Re-export all types from generated file (messages, enums, etc.)
-export * as ${camelName}ClientType from '${generatedPath}/${importPath}'
 `;
 }
 

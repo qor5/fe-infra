@@ -41,5 +41,34 @@ const filter: pimService.types.ProductFilter = {
 
 ### Breaking Changes
 
-- `connect-client.ts` no longer auto-initializes transport
-- Must call `initializeTransport()` before using service clients
+- `connect-client.ts` no longer auto-initializes transport - must call `initializeTransport()` before using service clients
+- Removed `xxxClientType` exports from service clients (e.g., `productClientType`)
+  - Use `pimService.types.*` instead of `pimService.productClientType.*`
+  - All types are now unified under the `types` namespace
+
+### Migration Guide
+
+**1. Initialize transport before using service clients:**
+
+```typescript
+// src/lib/api/index.ts
+import { initializeTransport } from './rpc-service/connect-client'
+
+initializeTransport({
+  fetch: createFetchClient({ ... }),
+})
+
+export * from './rpc-service'
+```
+
+**2. Update type imports:**
+
+```typescript
+// Before
+import { pimService } from '@/lib/api'
+const filter: pimService.productClientType.ProductFilter = { ... }
+
+// After
+import { pimService } from '@/lib/api'
+const filter: pimService.types.ProductFilter = { ... }
+```
