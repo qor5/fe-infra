@@ -10,11 +10,11 @@ import type { ProtoGenConfig, ValidationResult } from "./types.js";
 import { generateBufGenYaml } from "./templates/buf-gen.template.js";
 import {
   findBufModuleRoot,
-  findProtoFiles,
   findServiceFiles,
   extractBufDependencies,
 } from "./utils/proto-scanner.js";
-import { applyJsonNameMappings } from "./utils/json-name.js";
+// json_name mapping is disabled - see Step 2.5 comment for details
+// import { applyJsonNameMappings } from "./utils/json-name.js";
 import {
   generateServiceWrappers,
   findAllTypeFiles,
@@ -164,19 +164,14 @@ export async function generateFromProto(
     // Clean up temporary config
     fs.unlinkSync(tempBufConfig);
 
-    // Step 2.5: Apply json_name mappings to generated files
-    console.log("\n📝 Step 2.5: Applying json_name mappings...");
+    // Step 2.5: Resolve output directory (json_name mapping is disabled)
+    // Note: @bufbuild/protobuf runtime uses camelCase of original field names,
+    // NOT json_name. Applying json_name to TypeScript types would cause a mismatch
+    // between type definitions and runtime objects.
+    // See: https://github.com/bufbuild/protobuf-es/issues/documentation
     const resolvedOutputDir = path.isAbsolute(outputDir)
       ? outputDir
       : path.join(workingDir, outputDir);
-
-    // Scan all proto files in the input directory to find json_name definitions
-    console.log(`   📂 Scanning proto directory: ${inputDir}`);
-    const allProtoFiles = findProtoFiles(inputDir);
-    console.log(
-      `   📄 Found ${allProtoFiles.length} proto file(s) to scan for json_name declarations`,
-    );
-    applyJsonNameMappings(resolvedOutputDir, allProtoFiles);
 
     // Step 3: Scan generated files and update service wrappers (if configured)
     if (servicesDir) {
