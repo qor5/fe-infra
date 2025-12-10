@@ -3,7 +3,7 @@
 /**
  * CLI entry point for proto-to-ts
  */
-import { runInteractiveCLI } from "../dist/cli.js";
+import { runInteractiveCLI, runNonInteractiveCLI } from "../dist/cli.js";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -13,16 +13,18 @@ const __dirname = path.dirname(__filename);
 
 // Default configuration
 const defaultConfig = {
-  outputDir: "src/lib/api/generated",
-  servicesDir: "src/lib/api/services",
+  rpcServiceDir: "src/lib/api/rpc-service",
   historyFile: ".proto-to-ts-history.json",
   maxHistory: 10,
-  // Exclude admin services by default
-  excludeServicePatterns: ["AdminService"],
+  // Default: include all services
+  includeServicePatterns: ["*"],
+  excludeServicePatterns: [],
 };
 
 // Check for --init flag
 const args = process.argv.slice(2);
+const isYesMode = args.includes("-y") || args.includes("--yes");
+
 if (args.includes("--init") || args.includes("-i")) {
   const configPath = path.join(process.cwd(), "proto-to-ts.config.js");
 
@@ -35,23 +37,30 @@ if (args.includes("--init") || args.includes("-i")) {
  * Configuration for proto-to-ts code generation tool
  */
 export default {
-  // Output directory for generated code
-  outputDir: 'src/lib/api/generated',
+  // Default module name for -y mode (e.g., "pim", "ciam", "loyalty")
+  // In interactive mode, history's moduleName for the selected proto path takes precedence
+  defaultModuleName: 'pim',
 
-  // Directory for service wrappers (optional)
-  // Set to undefined or remove to disable service wrapper generation
-  servicesDir: 'src/lib/api/services',
+  // Root directory for all RPC services
+  // outputDir and servicesDir are auto-computed: {rpcServiceDir}/{defaultModuleName}/generated|services
+  rpcServiceDir: 'src/lib/api/rpc-service',
 
-  // History file path (relative to project root)
-  historyFile: '.proto-to-ts-history.json',
+  // Path to proto file or directory (relative or absolute, required for -y mode)
+  // Example: '../../proto' or '/absolute/path/to/proto'
+  protoPath: undefined,
 
-  // Maximum number of history records to keep
-  maxHistory: 10,
+  // Include services matching these regex patterns (whitelist)
+  // Examples:
+  //   ["*"] - include all services (default)
+  //   ["CustomerService$"] - services ending with "CustomerService" (e.g., LoyaltyCustomerService)
+  //   ["^Public"] - services starting with "Public"
+  //   ["Customer", "Public"] - services containing "Customer" OR "Public"
+  includeServicePatterns: ["*"],
 
-  // Exclude services from client generation based on service name patterns
-  // Matches proto service names like: service UserAdminService { ... }
-  // Set to [] to include all services
-  excludeServicePatterns: ['AdminService'],
+  // Exclude services matching these regex patterns (blacklist)
+  // Applied after includeServicePatterns
+  // Examples: ["Admin", "Internal", "^Test"]
+  excludeServicePatterns: [],
 }
 `;
 
@@ -65,21 +74,50 @@ export default {
 
 // Try to load config from current directory
 let userConfig = {};
+let hasConfigFile = false;
 const configPath = path.join(process.cwd(), "proto-to-ts.config.js");
 try {
   const module = await import(configPath);
   userConfig = module.default || module;
+  hasConfigFile = true;
   console.log("✅ Loaded config from proto-to-ts.config.js\n");
 } catch (error) {
   // No config file, use defaults
-  console.log(
-    'ℹ️  Using default configuration (run "proto-to-ts --init" to create a config file)\n',
-  );
+  if (isYesMode) {
+    console.error("❌ Error: -y mode requires proto-to-ts.config.js");
+    console.error('💡 Run "proto-to-ts" first to create a config file');
+    process.exit(1);
+  }
+  console.log("ℹ️  No config file found (will be created after first run)\n");
 }
 
 const config = { ...defaultConfig, ...userConfig };
 
-runInteractiveCLI(config).catch((error) => {
-  console.error("❌ Fatal error:", error);
-  process.exit(1);
-});
+// Use non-interactive mode with -y flag
+if (isYesMode) {
+  if (!config.protoPath) {
+    console.error("❌ Error: protoPath is required in config file for -y mode");
+    console.error("💡 Add protoPath to your proto-to-ts.config.js:");
+    console.error('   protoPath: "../../proto"');
+    process.exit(1);
+  }
+
+  if (!config.defaultModuleName) {
+    console.error(
+      "❌ Error: defaultModuleName is required in config file for -y mode",
+    );
+    console.error("💡 Add defaultModuleName to your proto-to-ts.config.js:");
+    console.error('   defaultModuleName: "pim"');
+    process.exit(1);
+  }
+
+  runNonInteractiveCLI(config).catch((error) => {
+    console.error("❌ Fatal error:", error);
+    process.exit(1);
+  });
+} else {
+  runInteractiveCLI(config).catch((error) => {
+    console.error("❌ Fatal error:", error);
+    process.exit(1);
+  });
+}

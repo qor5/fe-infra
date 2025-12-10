@@ -13,7 +13,11 @@
     "changeset": "changeset",
     "tag": "changeset tag",
     "release": "pnpm -r -w install --no-frozen-lockfile && pnpm -r publish --registry https://npm.pkg.github.com && pnpm changeset tag && git push --follow-tags",
-    "changelog": "pnpm changeset changelog"
+    "changelog": "pnpm changeset changelog",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "build": "pnpm -r --if-present run build",
+    "test": "pnpm -r --if-present run test",
+    "test:coverage": "pnpm -r --if-present run test:coverage"
   },
   "keywords": [],
   "author": "",
