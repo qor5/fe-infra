@@ -5,12 +5,13 @@ Interactive Protobuf to TypeScript code generation tool with Connect-RPC support
 ## Features
 
 - 🎯 **Interactive Selection** - User-friendly CLI interface to select proto files or directories
+- 🚀 **CI Mode** - Non-interactive mode (`-y` flag) for automated pipelines
 - 📚 **History** - Automatically saves recently used paths for quick regeneration
 - 🔄 **Automation** - Automatically generates TypeScript types, Connect-RPC clients, and service wrappers
 - 🎨 **Template Configuration** - Automatically extracts dependencies from `buf.yaml` to generate `buf.gen.yaml`
-- 🔍 **JSON Name Support** - Automatically applies protobuf `json_name` mappings
+- 🎯 **Service Filtering** - Whitelist (`includeServicePatterns`) and blacklist (`excludeServicePatterns`) with regex support
 - 📦 **Service Wrappers** - Optional generation of Connect-RPC service client wrappers
-- 🏷️ **Types Namespace** - Auto-aggregated types with IDE auto-completion support
+- 🏷️ **Namespaced Types** - Auto-aggregated types with namespace exports to avoid conflicts
 
 ## Installation
 
@@ -61,29 +62,53 @@ npx proto-to-ts --init
 Or create it manually:
 
 ```javascript
+/**
+ * Pattern syntax: JavaScript RegExp
+ *   - "*" matches all services
+ *   - "CustomerService$" matches services ending with "CustomerService"
+ *   - "^Public" matches services starting with "Public"
+ *   - "Admin" matches services containing "Admin"
+ */
 export default {
-  // Output directory for generated code (default: src/lib/api/generated)
-  outputDir: "src/lib/api/generated",
+  // Default module name for -y mode (e.g., "pim", "ciam", "loyalty")
+  defaultModuleName: "pim",
 
-  // Optional: Service wrapper directory
-  // If set, generates a client wrapper for each proto service
-  // Set to undefined or remove to disable service wrapper generation
-  // (default: src/lib/api/services)
-  servicesDir: "src/lib/api/services",
+  // Root directory for all RPC services
+  rpcServiceDir: "src/lib/api/rpc-service",
 
-  // History file path (relative to project root) (default: .proto-to-ts-history.json)
+  // Path to proto file or directory (required for -y mode)
+  protoPath: "../../proto",
+
+  // Include services matching these regex patterns (whitelist)
+  // ["*"] = all services (default)
+  // ["CustomerService$"] = only services ending with "CustomerService"
+  includeServicePatterns: ["*"],
+
+  // Exclude services matching these regex patterns (blacklist)
+  // Applied after includeServicePatterns
+  excludeServicePatterns: [],
+
+  // History file path (default: .proto-to-ts-history.json)
   historyFile: ".proto-to-ts-history.json",
 
   // Maximum number of history items to save (default: 10)
   maxHistory: 10,
-
-  // Exclude services from client generation based on service name patterns
-  // Default: ["AdminService"] - excludes all services containing "AdminService"
-  // Matches against proto service names like: service UserAdminService { ... }
-  // Set to [] (empty array) to disable default exclusion and include all services
-  // excludeServicePatterns: ["AdminService"], // default, can be omitted
 };
 ```
+
+### CI Mode (Non-interactive)
+
+For automated pipelines, use the `-y` flag to skip all prompts:
+
+```bash
+npx proto-to-ts -y
+```
+
+This requires a `proto-to-ts.config.js` file with at least:
+
+- `protoPath`: Path to proto directory
+- `defaultModuleName`: Module name for generated code
+- `rpcServiceDir`: Root directory for RPC services
 
 ### Workflow
 
@@ -159,13 +184,14 @@ const response = await pimService.productClient.listProducts({
 
 ### Using Types with IDE Auto-completion
 
-All protobuf types are aggregated in the `types` namespace, enabling full IDE auto-completion:
+All protobuf types are exported as namespaces to avoid naming conflicts:
 
 ```typescript
 import { pimService } from "@/lib/api";
 
-// ✅ IDE auto-completion works: pimService.types.ProductFilter, pimService.types.Product, etc.
-const filter: pimService.types.ProductFilter = {
+// Types are namespaced by proto file to avoid conflicts
+// e.g., pimService.types.Product.Product, pimService.types.Category.Category
+const filter: pimService.types.Product.ProductFilter = {
   priceInclTax: { gte: 100, lte: 500 },
 };
 
@@ -173,7 +199,17 @@ const filter: pimService.types.ProductFilter = {
 const response = await pimService.productClient.listProducts({ filter });
 
 // Access response types
-const products: pimService.types.Product[] = response.edges.map((e) => e.node);
+const products: pimService.types.Product.Product[] = response.edges.map(
+  (e) => e.node,
+);
+```
+
+Types are exported as namespaces to prevent naming conflicts when different proto files define types with the same name:
+
+```typescript
+// types/index.ts (auto-generated)
+export * as Product from "../generated/pim/product/v1/product_pb";
+export * as Category from "../generated/pim/category/v1/category_pb";
 ```
 
 ### TypeScript Types and Clients
@@ -185,7 +221,7 @@ The tool uses the following plugins to generate code:
 
 ### Service Wrappers
 
-If `servicesDir` is configured, the tool generates wrapper clients for each service:
+The tool generates wrapper clients for each service by default:
 
 ```typescript
 // Example: product.client.ts

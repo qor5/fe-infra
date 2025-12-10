@@ -4,7 +4,7 @@
  * Interactive protobuf to TypeScript code generation tool with Connect-RPC support
  */
 
-export { runInteractiveCLI } from "./cli.js";
+export { runInteractiveCLI, runNonInteractiveCLI } from "./cli.js";
 export { generateFromProto } from "./generator.js";
 export {
   generateBufGenYaml,
@@ -15,6 +15,7 @@ export {
   saveHistory,
   addToHistory,
   formatTimestamp,
+  getModuleNameFromHistory,
 } from "./utils/history.js";
 export {
   isValidProtoPath,

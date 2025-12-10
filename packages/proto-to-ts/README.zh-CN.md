@@ -5,12 +5,13 @@
 ## 特性
 
 - 🎯 **交互式选择** - 通过友好的 CLI 界面选择 proto 文件或目录
+- 🚀 **CI 模式** - 非交互模式（`-y` 参数）支持自动化流水线
 - 📚 **历史记录** - 自动保存最近使用的路径，快速重新生成
 - 🔄 **自动化流程** - 自动生成 TypeScript 类型、Connect-RPC 客户端和服务包装器
 - 🎨 **模板化配置** - 自动从 `buf.yaml` 提取依赖生成 `buf.gen.yaml`
-- 🔍 **JSON Name 支持** - 自动应用 protobuf 的 `json_name` 映射
+- 🎯 **服务过滤** - 白名单（`includeServicePatterns`）和黑名单（`excludeServicePatterns`），支持正则表达式
 - 📦 **服务包装器** - 可选的 Connect-RPC 服务客户端包装器生成
-- 🏷️ **类型命名空间** - 自动聚合类型，支持 IDE 自动补全
+- 🏷️ **命名空间类型** - 自动聚合类型并使用命名空间导出，避免命名冲突
 
 ## 安装
 
@@ -61,29 +62,53 @@ npx proto-to-ts --init
 或者手动创建：
 
 ```javascript
+/**
+ * Pattern 语法：JavaScript 正则表达式
+ *   - "*" 匹配所有服务
+ *   - "CustomerService$" 匹配以 "CustomerService" 结尾的服务
+ *   - "^Public" 匹配以 "Public" 开头的服务
+ *   - "Admin" 匹配包含 "Admin" 的服务
+ */
 export default {
-  // 生成代码的输出目录（默认：src/lib/api/generated）
-  outputDir: "src/lib/api/generated",
+  // -y 模式的默认模块名（如 "pim", "ciam", "loyalty"）
+  defaultModuleName: "pim",
 
-  // 可选：服务包装器目录
-  // 如果设置，会为每个 proto service 生成一个客户端包装器
-  // 设置为 undefined 或删除以禁用服务包装器生成
-  // （默认：src/lib/api/services）
-  servicesDir: "src/lib/api/services",
+  // RPC 服务的根目录
+  rpcServiceDir: "src/lib/api/rpc-service",
 
-  // 历史记录文件路径（相对于项目根目录）（默认：.proto-to-ts-history.json）
+  // proto 文件或目录的路径（-y 模式必需）
+  protoPath: "../../proto",
+
+  // 包含服务的正则表达式模式（白名单）
+  // ["*"] = 所有服务（默认）
+  // ["CustomerService$"] = 只包含以 "CustomerService" 结尾的服务
+  includeServicePatterns: ["*"],
+
+  // 排除服务的正则表达式模式（黑名单）
+  // 在 includeServicePatterns 之后应用
+  excludeServicePatterns: [],
+
+  // 历史记录文件路径（默认：.proto-to-ts-history.json）
   historyFile: ".proto-to-ts-history.json",
 
   // 保存的历史记录最大数量（默认：10）
   maxHistory: 10,
-
-  // 排除服务，不生成客户端
-  // 默认值: ["AdminService"] - 排除所有服务名包含 "AdminService" 的服务
-  // 匹配 proto 中定义的服务名，如: service UserAdminService { ... }
-  // 设置为 [] (空数组) 可禁用默认排除，生成所有服务
-  // excludeServicePatterns: ['AdminService'], // 默认值，可省略
 };
 ```
+
+### CI 模式（非交互）
+
+在自动化流水线中，使用 `-y` 参数跳过所有提示：
+
+```bash
+npx proto-to-ts -y
+```
+
+这需要 `proto-to-ts.config.js` 文件包含以下必需字段：
+
+- `protoPath`: proto 目录路径
+- `defaultModuleName`: 生成代码的模块名
+- `rpcServiceDir`: RPC 服务的根目录
 
 ### 工作流程
 
@@ -159,13 +184,14 @@ const response = await pimService.productClient.listProducts({
 
 ### 使用类型（支持 IDE 自动补全）
 
-所有 protobuf 类型都聚合在 `types` 命名空间中，支持完整的 IDE 自动补全：
+所有 protobuf 类型都以命名空间方式导出，避免命名冲突：
 
 ```typescript
 import { pimService } from "@/lib/api";
 
-// ✅ IDE 自动补全生效：pimService.types.ProductFilter, pimService.types.Product 等
-const filter: pimService.types.ProductFilter = {
+// 类型按 proto 文件命名空间隔离，避免冲突
+// 例如：pimService.types.Product.Product, pimService.types.Category.Category
+const filter: pimService.types.Product.ProductFilter = {
   priceInclTax: { gte: 100, lte: 500 },
 };
 
@@ -173,7 +199,17 @@ const filter: pimService.types.ProductFilter = {
 const response = await pimService.productClient.listProducts({ filter });
 
 // 访问响应类型
-const products: pimService.types.Product[] = response.edges.map((e) => e.node);
+const products: pimService.types.Product.Product[] = response.edges.map(
+  (e) => e.node,
+);
+```
+
+类型以命名空间方式导出，防止不同 proto 文件定义相同名称类型时的冲突：
+
+```typescript
+// types/index.ts（自动生成）
+export * as Product from "../generated/pim/product/v1/product_pb";
+export * as Category from "../generated/pim/category/v1/category_pb";
 ```
 
 ### TypeScript 类型和客户端
@@ -185,7 +221,7 @@ const products: pimService.types.Product[] = response.edges.map((e) => e.node);
 
 ### 服务包装器
 
-如果配置了 `servicesDir`，工具会为每个服务生成包装器客户端：
+工具默认会为每个服务生成包装器客户端：
 
 ```typescript
 // 示例：product.client.ts

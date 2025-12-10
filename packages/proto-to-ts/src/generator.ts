@@ -27,6 +27,7 @@ export interface GeneratorOptions extends ProtoGenConfig {
   targetPath: string;
   validation: ValidationResult;
   workingDir: string;
+  includeServicePatterns?: string[];
   excludeServicePatterns?: string[];
 }
 
@@ -40,12 +41,19 @@ export async function generateFromProto(
     targetPath,
     validation,
     workingDir,
-    outputDir,
-    servicesDir,
     moduleName,
     rpcServiceDir,
+    includeServicePatterns,
     excludeServicePatterns,
   } = options;
+
+  // Validate and extract required fields
+  const outputDir = options.outputDir;
+  const servicesDir = options.servicesDir;
+
+  if (!outputDir) {
+    throw new Error("outputDir is required for code generation");
+  }
 
   console.log("\n🔄 Starting API generation workflow...\n");
 
@@ -198,6 +206,7 @@ export async function generateFromProto(
           resolvedOutputDir,
           resolvedServicesDir,
           moduleName,
+          includeServicePatterns,
           excludeServicePatterns,
         );
 

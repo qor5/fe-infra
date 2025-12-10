@@ -38,12 +38,14 @@ export function saveHistory(historyFile: string, history: History): void {
 }
 
 /**
- * Add new path to history
+ * Add new path to history with associated module name
  */
 export function addToHistory(
   historyFile: string,
   targetPath: string,
   type: "file" | "directory",
+  moduleName: string,
+  rpcServiceDir: string,
   maxHistory: number = DEFAULT_MAX_HISTORY,
 ): void {
   const history = loadHistory(historyFile);
@@ -51,17 +53,32 @@ export function addToHistory(
   // Remove existing entry if it exists
   history.records = history.records.filter((r) => r.path !== targetPath);
 
-  // Add new entry at the beginning
+  // Add new entry at the beginning with module name
   history.records.unshift({
     path: targetPath,
     timestamp: Date.now(),
     type,
+    moduleName,
   });
 
   // Keep only last MAX_HISTORY entries
   history.records = history.records.slice(0, maxHistory);
 
+  // Update last used rpcServiceDir
+  history.lastRpcServiceDir = rpcServiceDir;
+
   saveHistory(historyFile, history);
+}
+
+/**
+ * Get module name for a specific proto path from history
+ */
+export function getModuleNameFromHistory(
+  history: History,
+  protoPath: string,
+): string | undefined {
+  const record = history.records.find((r) => r.path === protoPath);
+  return record?.moduleName;
 }
 
 /**

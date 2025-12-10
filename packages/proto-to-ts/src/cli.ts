@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 /**
- * Interactive CLI for proto code generation
+ * Interactive and Non-Interactive CLI for proto code generation
  */
 import fs from "fs";
 import path from "path";
 import inquirer from "inquirer";
 import type { ProtoGenConfig } from "./types.js";
 import { isValidProtoPath } from "./utils/proto-scanner.js";
-import { loadHistory, addToHistory, formatTimestamp } from "./utils/history.js";
+import {
+  loadHistory,
+  addToHistory,
+  formatTimestamp,
+  getModuleNameFromHistory,
+} from "./utils/history.js";
 import { generateFromProto } from "./generator.js";
 import { getRequiredDependencies } from "./utils/setup-helpers.js";
 import {
@@ -15,6 +20,113 @@ import {
   checkPackagesInstalled,
   installPackages,
 } from "./utils/package-manager.js";
+
+/**
+ * Non-interactive CLI function for CI/CD environments
+ * Requires protoPath to be configured in config file
+ */
+export async function runNonInteractiveCLI(
+  config: ProtoGenConfig,
+): Promise<void> {
+  console.log("🚀 Non-Interactive Proto Code Generation Tool (CI Mode)\n");
+
+  const { protoPath, rpcServiceDir } = config;
+  // Support both defaultModuleName (new) and moduleName (legacy) for backward compatibility
+  const configModuleName = config.defaultModuleName || config.moduleName;
+
+  // Validate required fields
+  if (!protoPath) {
+    throw new Error(
+      "protoPath is required in config file for non-interactive mode",
+    );
+  }
+
+  if (!configModuleName) {
+    throw new Error(
+      "defaultModuleName (or moduleName) is required in config file for non-interactive mode",
+    );
+  }
+
+  if (!rpcServiceDir) {
+    throw new Error(
+      "rpcServiceDir is required in config file for non-interactive mode",
+    );
+  }
+
+  const moduleName = configModuleName;
+
+  // Convert relative path to absolute path based on current working directory
+  const resolvedProtoPath = path.isAbsolute(protoPath)
+    ? protoPath
+    : path.resolve(process.cwd(), protoPath);
+
+  // Validate the target path
+  const validation = isValidProtoPath(resolvedProtoPath);
+
+  if (!validation.valid || !validation.type || !validation.files) {
+    throw new Error(
+      `Invalid protoPath or no .proto files found: ${resolvedProtoPath}`,
+    );
+  }
+
+  console.log(`📍 Proto path: ${resolvedProtoPath}`);
+  console.log(`📊 Type: ${validation.type}`);
+  console.log(`📝 Proto files found: ${validation.files.length}\n`);
+
+  // Display found files
+  validation.files.forEach((file, index) => {
+    console.log(`   ${index + 1}. ${file}`);
+  });
+
+  console.log("");
+
+  // Set output directories based on module structure
+  const outputDir = path.join(rpcServiceDir, moduleName, "generated");
+  const servicesDir = path.join(rpcServiceDir, moduleName, "services");
+
+  // Get include/exclude patterns from config (default to '*' for all services)
+  const includeServicePatterns = config.includeServicePatterns || ["*"];
+  const excludeServicePatterns = config.excludeServicePatterns || [];
+
+  console.log(`📦 Modular Structure:`);
+  console.log(`   Module: ${moduleName}`);
+  console.log(`   RPC Service Dir: ${rpcServiceDir}`);
+  console.log(`   Generated files: ${outputDir}`);
+  console.log(`   Service clients: ${servicesDir}`);
+  console.log(`   Include patterns: ${includeServicePatterns.join(", ")}`);
+  if (excludeServicePatterns.length > 0) {
+    console.log(`   Exclude patterns: ${excludeServicePatterns.join(", ")}`);
+  }
+  console.log("");
+
+  // Update config with computed values
+  config.moduleName = moduleName;
+  config.outputDir = outputDir;
+  config.servicesDir = servicesDir;
+  config.includeServicePatterns = includeServicePatterns;
+  config.excludeServicePatterns = excludeServicePatterns;
+
+  // Check and install dependencies if needed
+  const workingDir = process.cwd();
+  const deps = getRequiredDependencies();
+  const { missing } = checkPackagesInstalled(workingDir, deps.runtime);
+
+  if (missing.length > 0) {
+    console.log(`\n📦 Installing missing dependencies...`);
+    missing.forEach((pkg) => {
+      console.log(`     - ${pkg.name}@${pkg.version}`);
+    });
+    await installPackages(workingDir, missing, false);
+  }
+
+  // Execute the API generation
+  await generateFromProto({
+    targetPath: resolvedProtoPath,
+    validation,
+    workingDir,
+    ...config,
+  });
+}
 
 /**
  * Main interactive CLI function
@@ -38,8 +150,9 @@ export async function runInteractiveCLI(config: ProtoGenConfig): Promise<void> {
     history.records.forEach((record) => {
       const icon = record.type === "file" ? "📄" : "📁";
       const timeAgo = formatTimestamp(record.timestamp);
+      const moduleInfo = record.moduleName ? ` [${record.moduleName}]` : "";
       choices.push({
-        name: `${icon} ${record.path} (${timeAgo})`,
+        name: `${icon} ${record.path}${moduleInfo} (${timeAgo})`,
         value: record.path,
         short: record.path,
       });
@@ -115,13 +228,22 @@ export async function runInteractiveCLI(config: ProtoGenConfig): Promise<void> {
   let outputDir: string;
   let servicesDir: string;
 
+  // Get default module name from history (associated with this proto path)
+  const historyModuleName = getModuleNameFromHistory(history, targetPath);
+  // Get last used rpcServiceDir from history
+  const historyRpcServiceDir = history.lastRpcServiceDir;
+
   // Ask for module name
   const { inputModuleName } = await inquirer.prompt([
     {
       type: "input",
       name: "inputModuleName",
       message: "Enter module name (e.g., pim, ciam, auth):",
-      default: config.moduleName || "pim",
+      default:
+        historyModuleName ||
+        config.defaultModuleName ||
+        config.moduleName ||
+        "pim",
       validate: (input: string) => {
         if (!input) return "Module name cannot be empty";
         if (!/^[a-z0-9-_]+$/i.test(input))
@@ -140,7 +262,10 @@ export async function runInteractiveCLI(config: ProtoGenConfig): Promise<void> {
       name: "inputRpcServiceDir",
       message:
         "Enter RPC service root directory (relative to current directory):",
-      default: config.rpcServiceDir || "src/lib/api/rpc-service",
+      default:
+        historyRpcServiceDir ||
+        config.rpcServiceDir ||
+        "src/lib/api/rpc-service",
       validate: (input: string) => {
         if (!input) return "RPC service directory cannot be empty";
         if (path.isAbsolute(input)) return "Please enter a relative path";
@@ -155,17 +280,110 @@ export async function runInteractiveCLI(config: ProtoGenConfig): Promise<void> {
   outputDir = path.join(rpcServiceDir!, moduleName!, "generated");
   servicesDir = path.join(rpcServiceDir!, moduleName!, "services");
 
+  // Ask about include patterns (whitelist)
+  let includeServicePatterns: string[] = ["*"];
+  const defaultCustomerPattern = "CustomerService$";
+  const currentIncludePatterns = config.includeServicePatterns || ["*"];
+
+  // Determine default choice based on current config
+  let defaultChoice = "all";
+  if (
+    currentIncludePatterns.length > 0 &&
+    !currentIncludePatterns.includes("*")
+  ) {
+    if (currentIncludePatterns.includes(defaultCustomerPattern)) {
+      defaultChoice = "customer";
+    } else {
+      defaultChoice = "custom";
+    }
+  }
+
+  const { includeChoice } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "includeChoice",
+      message: "Which services do you want to include? (uses regex patterns)",
+      choices: [
+        { name: "All services (*)", value: "all" },
+        {
+          name: `Only customer-facing services (regex: ${defaultCustomerPattern})`,
+          value: "customer",
+        },
+        { name: "Custom regex pattern", value: "custom" },
+      ],
+      default: defaultChoice,
+    },
+  ]);
+
+  if (includeChoice === "all") {
+    includeServicePatterns = ["*"];
+  } else if (includeChoice === "customer") {
+    includeServicePatterns = [defaultCustomerPattern];
+  } else if (includeChoice === "custom") {
+    const { inputIncludePatterns } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "inputIncludePatterns",
+        message:
+          "Enter regex patterns to include (comma-separated):\n" +
+          "   Examples: CustomerService$ (ends with), ^Public (starts with), Admin (contains)\n" +
+          "   Use * to include all services\n" +
+          "   Pattern:",
+        default: currentIncludePatterns.includes("*")
+          ? defaultCustomerPattern
+          : currentIncludePatterns.join(", "),
+      },
+    ]);
+
+    includeServicePatterns = inputIncludePatterns
+      .split(",")
+      .map((p: string) => p.trim())
+      .filter((p: string) => p.length > 0);
+  }
+
+  // Ask if user wants to exclude any services (blacklist, applied after whitelist)
+  let excludeServicePatterns: string[] = [];
+  const { wantExclude } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "wantExclude",
+      message: "Do you want to exclude any services? (blacklist, uses regex)",
+      default: false,
+    },
+  ]);
+
+  if (wantExclude) {
+    const currentExcludePatterns = config.excludeServicePatterns || [];
+    const { inputExcludePatterns } = await inquirer.prompt([
+      {
+        type: "input",
+        name: "inputExcludePatterns",
+        message:
+          "Enter regex patterns to exclude (comma-separated):\n" +
+          "   Examples: Admin (contains), ^Test (starts with), Mock$ (ends with)\n" +
+          "   Pattern:",
+        default: currentExcludePatterns.join(", "),
+      },
+    ]);
+
+    // Parse exclude patterns
+    excludeServicePatterns = inputExcludePatterns
+      .split(",")
+      .map((p: string) => p.trim())
+      .filter((p: string) => p.length > 0);
+  }
+
   console.log(`\n📦 Modular Structure:`);
   console.log(`   Module: ${moduleName}`);
   console.log(`   RPC Service Dir: ${rpcServiceDir}`);
   console.log(`   Generated files: ${outputDir}`);
-  console.log(`   Service clients: ${servicesDir}\n`);
+  console.log(`   Service clients: ${servicesDir}`);
+  console.log(`   Include patterns: ${includeServicePatterns.join(", ")}`);
+  if (excludeServicePatterns.length > 0) {
+    console.log(`   Exclude patterns: ${excludeServicePatterns.join(", ")}`);
+  }
+  console.log("");
 
-  // BREAKING CHANGE: Flat structure is no longer supported. All projects now use modular structure.
-  console.warn(
-    "⚠️  NOTICE: The flat structure option has been removed. All projects now use the modular structure.\n" +
-    "If you previously relied on the flat structure, please update your workflow accordingly."
-  );
   // Confirm before proceeding
   const { confirm } = await inquirer.prompt([
     {
@@ -186,9 +404,18 @@ export async function runInteractiveCLI(config: ProtoGenConfig): Promise<void> {
   config.servicesDir = servicesDir;
   config.moduleName = moduleName;
   config.rpcServiceDir = rpcServiceDir;
+  config.includeServicePatterns = includeServicePatterns;
+  config.excludeServicePatterns = excludeServicePatterns;
 
-  // Add to history
-  addToHistory(historyFile, targetPath, validation.type, config.maxHistory);
+  // Add to history with module name and rpcServiceDir
+  addToHistory(
+    historyFile,
+    targetPath,
+    validation.type,
+    moduleName!,
+    rpcServiceDir!,
+    config.maxHistory,
+  );
 
   // Check if this is first time setup
   const workingDir = process.cwd();
@@ -244,4 +471,90 @@ export async function runInteractiveCLI(config: ProtoGenConfig): Promise<void> {
     workingDir,
     ...config,
   });
+
+  // Auto-generate or update config file after successful generation
+  await saveConfigFile(workingDir, {
+    defaultModuleName: moduleName!,
+    rpcServiceDir: rpcServiceDir!,
+    protoPath: targetPath,
+    includeServicePatterns,
+    excludeServicePatterns,
+  });
+}
+
+/**
+ * Save or update proto-to-ts.config.js file
+ */
+async function saveConfigFile(
+  workingDir: string,
+  options: {
+    defaultModuleName: string;
+    rpcServiceDir: string;
+    protoPath: string;
+    includeServicePatterns: string[];
+    excludeServicePatterns: string[];
+  },
+): Promise<void> {
+  const configPath = path.join(workingDir, "proto-to-ts.config.js");
+
+  // Convert absolute protoPath to relative path if it's under workingDir
+  let relativeProtoPath = options.protoPath;
+  if (path.isAbsolute(options.protoPath)) {
+    const relative = path.relative(workingDir, options.protoPath);
+    // Only use relative path if it doesn't go too far up
+    if (!relative.startsWith("..") || relative.split("..").length <= 3) {
+      relativeProtoPath = relative.startsWith(".") ? relative : `./${relative}`;
+    }
+  }
+
+  const includePatternsStr =
+    options.includeServicePatterns.length > 0
+      ? `["${options.includeServicePatterns.join('", "')}"]`
+      : "[]";
+
+  const excludePatternsStr =
+    options.excludeServicePatterns.length > 0
+      ? `["${options.excludeServicePatterns.join('", "')}"]`
+      : "[]";
+
+  const configContent = `/**
+ * Configuration for proto-to-ts code generation
+ * Auto-generated by proto-to-ts interactive mode
+ *
+ * Pattern syntax: JavaScript RegExp
+ *   - "CustomerService$" matches services ending with "CustomerService"
+ *   - "^Public" matches services starting with "Public"
+ *   - "Admin" matches services containing "Admin"
+ */
+export default {
+  // Default module name for -y mode
+  // In interactive mode, history's moduleName for the selected proto path takes precedence
+  defaultModuleName: "${options.defaultModuleName}",
+
+  // Root directory for all RPC services
+  // outputDir and servicesDir are auto-computed: {rpcServiceDir}/{defaultModuleName}/generated|services
+  rpcServiceDir: "${options.rpcServiceDir}",
+
+  // Path to proto file or directory (required for -y mode)
+  protoPath: "${relativeProtoPath}",
+
+  // Include services matching these regex patterns (whitelist)
+  // ["*"] = all services, ["CustomerService$"] = specific pattern
+  includeServicePatterns: ${includePatternsStr},
+
+  // Exclude services matching these regex patterns (blacklist)
+  // Applied after includeServicePatterns
+  excludeServicePatterns: ${excludePatternsStr},
+}
+`;
+
+  const exists = fs.existsSync(configPath);
+  fs.writeFileSync(configPath, configContent);
+
+  if (exists) {
+    console.log("\n✅ Updated proto-to-ts.config.js");
+  } else {
+    console.log("\n✅ Created proto-to-ts.config.js");
+  }
+  console.log('💡 You can now use "proto-to-ts -y" for non-interactive mode');
 }

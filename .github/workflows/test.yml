@@ -15,8 +15,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  test-fetch-middleware:
-    name: Test Fetch Middleware
+  test:
+    name: Build & Test All Packages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -48,26 +48,26 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run tests
-        run: cd packages/fetch-middleware && pnpm test
+      - name: Type check (all packages)
+        run: pnpm typecheck
 
-      - name: Run test coverage
-        run: cd packages/fetch-middleware && pnpm test:coverage
+      - name: Build (all packages)
+        run: pnpm build
 
-      - name: Type check
-        run: cd packages/fetch-middleware && pnpm typecheck
+      - name: Test (all packages)
+        run: pnpm test
 
-      - name: Build package
-        run: cd packages/fetch-middleware && pnpm build
+      - name: Test coverage (all packages)
+        run: pnpm test:coverage
 
       - name: Upload coverage reports
         if: always()
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./packages/fetch-middleware/coverage/coverage-final.json
-          flags: fetch-middleware
-          name: fetch-middleware-coverage
+          directory: ./packages
+          flags: packages
+          name: packages-coverage
           fail_ci_if_error: false
 
       - name: Comment PR with test results
@@ -78,7 +78,7 @@ jobs:
           script: |
             const testStatus = '${{ job.status }}';
             const emoji = testStatus === 'success' ? '✅' : '❌';
-            const message = `${emoji} Fetch Middleware Tests ${testStatus === 'success' ? 'Passed' : 'Failed'}`;
+            const message = `${emoji} All Packages Tests ${testStatus === 'success' ? 'Passed' : 'Failed'}`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -86,4 +86,3 @@ jobs:
               repo: context.repo.repo,
               body: `## ${message}\n\n[View test results](${context.payload.pull_request.html_url}/checks)`
             });
-
