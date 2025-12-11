@@ -184,14 +184,15 @@ const response = await pimService.productClient.listProducts({
 
 ### 使用类型（支持 IDE 自动补全）
 
-所有 protobuf 类型都以命名空间方式导出，避免命名冲突：
+所有 protobuf 类型都以**嵌套命名空间**方式导出，按模块目录分组，提供直观的访问方式并避免命名冲突：
 
 ```typescript
 import { pimService } from "@/lib/api";
 
-// 类型按 proto 文件命名空间隔离，避免冲突
-// 例如：pimService.types.Product.Product, pimService.types.Category.Category
-const filter: pimService.types.Product.ProductFilter = {
+// 类型按 模块.文件名.类型 模式组织
+// 例如：pimService.types.Models.Category.Category
+// 例如：pimService.types.Product.Product.Product
+const filter: pimService.types.Product.Product.ProductFilter = {
   priceInclTax: { gte: 100, lte: 500 },
 };
 
@@ -199,17 +200,41 @@ const filter: pimService.types.Product.ProductFilter = {
 const response = await pimService.productClient.listProducts({ filter });
 
 // 访问响应类型
-const products: pimService.types.Product.Product[] = response.edges.map(
+const products: pimService.types.Product.Product.Product[] = response.edges.map(
   (e) => e.node,
 );
 ```
 
-类型以命名空间方式导出，防止不同 proto 文件定义相同名称类型时的冲突：
+类型按模块目录（版本目录 `v1` 之前的目录）分组，防止不同模块有相同文件名时的冲突：
 
 ```typescript
 // types/index.ts（自动生成）
-export * as Product from "../generated/pim/product/v1/product_pb";
-export * as Category from "../generated/pim/category/v1/category_pb";
+import * as _ModelsCategory from "../generated/pim/models/v1/category_pb";
+import * as _ProductCategory from "../generated/pim/product/v1/category_pb";
+import * as _CommonError from "../generated/pim/common/v1/error_pb";
+
+export namespace Models {
+  export import Category = _ModelsCategory;
+  export import GalleryImage = _ModelsGalleryImage;
+}
+export namespace Product {
+  export import Category = _ProductCategory;
+  export import Product = _ProductProduct;
+}
+export namespace Common {
+  export import Error = _CommonError;
+}
+```
+
+多模块使用示例：
+
+```typescript
+import { Models, Product, Common } from "@/api/rpc-service/pim/types";
+
+// 访问不同模块的类型，不会冲突
+type ModelCategory = Models.Category.Category;
+type ProductCategory = Product.Category.Category; // 相同文件名，不同模块！
+type ErrorType = Common.Error.Error;
 ```
 
 ### TypeScript 类型和客户端

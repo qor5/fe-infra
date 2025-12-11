@@ -184,14 +184,15 @@ const response = await pimService.productClient.listProducts({
 
 ### Using Types with IDE Auto-completion
 
-All protobuf types are exported as namespaces to avoid naming conflicts:
+All protobuf types are exported using **nested namespaces grouped by module directory**. This provides intuitive access and avoids naming conflicts:
 
 ```typescript
 import { pimService } from "@/lib/api";
 
-// Types are namespaced by proto file to avoid conflicts
-// e.g., pimService.types.Product.Product, pimService.types.Category.Category
-const filter: pimService.types.Product.ProductFilter = {
+// Types are organized by Module.Filename.Type pattern
+// e.g., pimService.types.Models.Category.Category
+// e.g., pimService.types.Product.Product.Product
+const filter: pimService.types.Product.Product.ProductFilter = {
   priceInclTax: { gte: 100, lte: 500 },
 };
 
@@ -199,17 +200,41 @@ const filter: pimService.types.Product.ProductFilter = {
 const response = await pimService.productClient.listProducts({ filter });
 
 // Access response types
-const products: pimService.types.Product.Product[] = response.edges.map(
+const products: pimService.types.Product.Product.Product[] = response.edges.map(
   (e) => e.node,
 );
 ```
 
-Types are exported as namespaces to prevent naming conflicts when different proto files define types with the same name:
+Types are grouped by their module directory (the directory before version like `v1`), preventing naming conflicts when different modules have files with the same name:
 
 ```typescript
 // types/index.ts (auto-generated)
-export * as Product from "../generated/pim/product/v1/product_pb";
-export * as Category from "../generated/pim/category/v1/category_pb";
+import * as _ModelsCategory from "../generated/pim/models/v1/category_pb";
+import * as _ProductCategory from "../generated/pim/product/v1/category_pb";
+import * as _CommonError from "../generated/pim/common/v1/error_pb";
+
+export namespace Models {
+  export import Category = _ModelsCategory;
+  export import GalleryImage = _ModelsGalleryImage;
+}
+export namespace Product {
+  export import Category = _ProductCategory;
+  export import Product = _ProductProduct;
+}
+export namespace Common {
+  export import Error = _CommonError;
+}
+```
+
+Usage example with multiple modules:
+
+```typescript
+import { Models, Product, Common } from "@/api/rpc-service/pim/types";
+
+// Access types from different modules without conflicts
+type ModelCategory = Models.Category.Category;
+type ProductCategory = Product.Category.Category; // Same filename, different module!
+type ErrorType = Common.Error.Error;
 ```
 
 ### TypeScript Types and Clients

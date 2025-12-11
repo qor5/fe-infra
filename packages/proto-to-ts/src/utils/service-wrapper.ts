@@ -54,33 +54,147 @@ export function findAllTypeFiles(dir: string, baseDir?: string): string[] {
 }
 
 /**
- * Convert file path to PascalCase namespace name
- * e.g., "loyalty/order/v1/order_reward_pb" -> "OrderReward"
- *       "loyalty/campaign/v1/campaign_pb" -> "Campaign"
+ * Convert snake_case string to PascalCase
+ * e.g., "order_reward" -> "OrderReward"
+ *       "gallery_image" -> "GalleryImage"
  */
-function filePathToNamespace(filePath: string): string {
-  // Extract filename without _pb suffix
-  const fileName = filePath.split("/").pop() || filePath;
-  const baseName = fileName.replace(/_pb$/, "");
-
-  // Convert snake_case to PascalCase
-  return baseName
+export function snakeToPascalCase(str: string): string {
+  return str
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join("");
 }
 
 /**
- * Generate types/index.ts content that aggregates all type exports using namespaces
- * This enables IDE auto-completion and avoids naming conflicts between proto files
+ * Convert file path to PascalCase type name (base name only, from filename)
+ *
+ * Rules:
+ * 1. Extract the filename from the path (last segment)
+ * 2. Remove the "_pb" suffix
+ * 3. Convert snake_case to PascalCase
+ *
+ * Examples:
+ *   "loyalty/order/v1/order_reward_pb" -> "OrderReward"
+ *   "loyalty/campaign/v1/campaign_pb" -> "Campaign"
+ *   "pim/models/v1/gallery_image_pb" -> "GalleryImage"
+ */
+export function filePathToTypeName(filePath: string): string {
+  // Extract filename without _pb suffix
+  const fileName = filePath.split("/").pop() || filePath;
+  const baseName = fileName.replace(/_pb$/, "");
+
+  return snakeToPascalCase(baseName);
+}
+
+// Alias for backward compatibility
+const filePathToNamespace = filePathToTypeName;
+
+/**
+ * Extract module name from file path (the directory before version directory)
+ *
+ * Path structure: {project}/{module}/{version}/{filename}
+ * This function extracts the {module} part by finding the version directory (v1, v2, etc.)
+ * and returning the directory name immediately before it.
+ *
+ * Rules:
+ * 1. Find the version directory pattern (v1, v2, v3, etc.)
+ * 2. Return the directory name before the version directory
+ * 3. If no version directory found, use the first directory as fallback
+ * 4. If path has no directories, return empty string
+ *
+ * Examples:
+ *   "pim/models/v1/category_pb" -> "models"
+ *   "pim/product/v1/category_pb" -> "product"
+ *   "loyalty/campaign/v1/campaign_pb" -> "campaign"
+ *   "loyalty/common/v2/error_pb" -> "common"
+ *   "models/v1/user_pb" -> "models"
+ *   "user_pb" -> ""
+ */
+export function extractModuleName(filePath: string): string {
+  const parts = filePath.split("/");
+  // Path format: project/module/version/file or module/version/file
+  // Find the version directory (v1, v2, etc.) and take the part before it
+  for (let i = parts.length - 2; i >= 0; i--) {
+    if (/^v\d+$/.test(parts[i])) {
+      // Found version directory, return the part before it
+      if (i > 0) {
+        return parts[i - 1];
+      }
+    }
+  }
+  // Fallback: if no version found, use the first directory
+  return parts.length > 1 ? parts[0] : "";
+}
+
+/**
+ * Generate a unique internal import alias for a file path
+ *
+ * The alias is used as a private import name to avoid conflicts when re-exporting
+ * in nested namespaces. The format is: _{Module}{TypeName}
+ *
+ * Rules:
+ * 1. Extract module name from path using extractModuleName()
+ * 2. Extract type name from filename using filePathToTypeName()
+ * 3. Combine as: "_{ModulePascalCase}{TypeName}"
+ * 4. If no module found, use: "_{TypeName}"
+ *
+ * Examples:
+ *   "pim/models/v1/category_pb" -> "_ModelsCategory"
+ *   "pim/product/v1/category_pb" -> "_ProductCategory"
+ *   "pim/common/v1/error_pb" -> "_CommonError"
+ *   "loyalty/order/v1/order_reward_pb" -> "_OrderOrderReward"
+ *   "models/v1/user_pb" -> "_ModelsUser"
+ *   "user_pb" -> "_User"
+ */
+export function filePathToImportAlias(filePath: string): string {
+  const baseName = filePathToNamespace(filePath);
+  const moduleName = extractModuleName(filePath);
+
+  if (!moduleName) {
+    return `_${baseName}`;
+  }
+
+  const modulePrefix = snakeToPascalCase(moduleName);
+  return `_${modulePrefix}${baseName}`;
+}
+
+/**
+ * Group type files by their module name
+ * Returns a map of moduleName -> array of { file, typeName }
+ */
+function groupTypeFilesByModule(
+  typeFiles: string[],
+): Map<string, Array<{ file: string; typeName: string }>> {
+  const moduleGroups = new Map<
+    string,
+    Array<{ file: string; typeName: string }>
+  >();
+
+  for (const file of typeFiles) {
+    const moduleName = extractModuleName(file);
+    const typeName = filePathToNamespace(file);
+    const moduleKey = moduleName || "_root";
+
+    const existing = moduleGroups.get(moduleKey) || [];
+    existing.push({ file, typeName });
+    moduleGroups.set(moduleKey, existing);
+  }
+
+  return moduleGroups;
+}
+
+/**
+ * Generate types/index.ts content using nested namespaces grouped by module
+ * This enables IDE auto-completion and provides intuitive access patterns
  *
  * @param typeFiles - Array of relative paths to _pb.ts files (without .ts extension)
  * @returns Generated TypeScript code for types/index.ts
  *
  * Usage:
- *   import { OrderReward, Campaign } from '@/api/rpc-service/loyalty/types'
- *   const reward: OrderReward.Reward = ...
- *   const campaign: Campaign.Campaign = ...
+ *   import { Models, Product, Common } from '@/api/rpc-service/pim/types'
+ *   type C1 = Models.Category.Category
+ *   type C2 = Product.Category.Category
+ *   type E = Common.Error.Error
  */
 export function generateTypesIndexFile(typeFiles: string[]): string {
   if (typeFiles.length === 0) {
@@ -92,33 +206,95 @@ export {}
 `;
   }
 
-  // Track namespaces to handle duplicates
-  const namespaceCount = new Map<string, number>();
-  const exports: string[] = [];
+  // Group files by module
+  const moduleGroups = groupTypeFilesByModule(typeFiles);
+
+  // Generate import statements with unique aliases
+  const imports: string[] = [];
+  const usedAliases = new Set<string>();
 
   for (const file of typeFiles) {
-    let namespace = filePathToNamespace(file);
+    let alias = filePathToImportAlias(file);
 
-    // Handle duplicate namespace names by appending a suffix
-    const count = namespaceCount.get(namespace) || 0;
-    if (count > 0) {
-      namespace = `${namespace}${count + 1}`;
+    // Ensure alias uniqueness
+    let finalAlias = alias;
+    let counter = 2;
+    while (usedAliases.has(finalAlias)) {
+      finalAlias = `${alias}${counter}`;
+      counter++;
     }
-    namespaceCount.set(filePathToNamespace(file), count + 1);
+    usedAliases.add(finalAlias);
 
-    exports.push(`export * as ${namespace} from '../generated/${file}'`);
+    imports.push(`import * as ${finalAlias} from '../generated/${file}'`);
+  }
+
+  // Generate namespace declarations
+  const namespaces: string[] = [];
+  const usedAliasesForExport = new Set<string>();
+
+  // Sort modules for consistent output
+  const sortedModules = Array.from(moduleGroups.keys()).sort();
+
+  for (const moduleKey of sortedModules) {
+    const files = moduleGroups.get(moduleKey) || [];
+    const moduleNamespace =
+      moduleKey === "_root" ? "Root" : snakeToPascalCase(moduleKey);
+
+    const exportStatements: string[] = [];
+    for (const { file, typeName } of files) {
+      // Find the alias used for this file
+      const alias = filePathToImportAlias(file);
+      let finalAlias = alias;
+
+      // Replicate the same uniqueness logic to find the correct alias
+      const tempUsed = new Set<string>();
+      for (const f of typeFiles) {
+        const a = filePathToImportAlias(f);
+        let fa = a;
+        let c = 2;
+        while (tempUsed.has(fa)) {
+          fa = `${a}${c}`;
+          c++;
+        }
+        tempUsed.add(fa);
+        if (f === file) {
+          finalAlias = fa;
+          break;
+        }
+      }
+
+      // Handle duplicate type names within the same module
+      let exportName = typeName;
+      let exportCounter = 2;
+      while (usedAliasesForExport.has(`${moduleKey}:${exportName}`)) {
+        exportName = `${typeName}${exportCounter}`;
+        exportCounter++;
+      }
+      usedAliasesForExport.add(`${moduleKey}:${exportName}`);
+
+      exportStatements.push(`  export import ${exportName} = ${finalAlias}`);
+    }
+
+    namespaces.push(
+      `export namespace ${moduleNamespace} {\n${exportStatements.join("\n")}\n}`,
+    );
   }
 
   return `// Types Index - Auto-generated type aggregation
 // DO NOT EDIT: This file is automatically generated
 //
-// This file aggregates all protobuf-generated types using namespaces to avoid conflicts.
+// This file aggregates all protobuf-generated types using nested namespaces grouped by module.
+// Each module (e.g., models, product, common) becomes a namespace containing its types.
+//
 // Usage:
-//   import { OrderReward, Campaign } from '@/api/rpc-service/loyalty/types'
-//   const reward: OrderReward.Reward = ...
-//   const campaign: Campaign.Campaign = ...
+//   import { Models, Product, Common } from '@/api/rpc-service/pim/types'
+//   type C1 = Models.Category.Category
+//   type C2 = Product.Category.Category
+//   type E = Common.Error.Error
 
-${exports.join("\n")}
+${imports.join("\n")}
+
+${namespaces.join("\n\n")}
 `;
 }
 
