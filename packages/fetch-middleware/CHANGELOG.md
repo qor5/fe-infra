@@ -1,5 +1,11 @@
 # @theplant/fetch-middleware
 
+## 0.4.3
+
+### Patch Changes
+
+- [#53](https://github.com/theplant/qor5-fe-infra/pull/53) [`d3e3406`](https://github.com/theplant/qor5-fe-infra/commit/d3e3406da443f4f5dfd8b23edb7722271a08be8c) Thanks [@danni-cool](https://github.com/danni-cool)! - Change package entry points to use compiled dist files instead of source files
+
 ## 0.4.2
 
 ### Patch Changes
