@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsup && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "clean": "rimraf dist",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
@@ -47,6 +47,7 @@
     "eslint": "^9.13.0",
     "prettier": "^3.6.2",
     "rimraf": "^6.0.1",
+    "tsup": "^8.5.1",
     "typescript": "^5.6.3",
     "vitest": "^3.0.5"
   },
