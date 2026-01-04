@@ -1,5 +1,14 @@
 # @theplant/fetch-middleware
 
+## 0.4.4
+
+### Patch Changes
+
+- [#55](https://github.com/theplant/qor5-fe-infra/pull/55) [`bee8012`](https://github.com/theplant/qor5-fe-infra/commit/bee80126af43be5403ac2948d0d808d1e8a9ce86) Thanks [@danni-cool](https://github.com/danni-cool)! - Switch from tsc to tsup for ESM/CJS bundling
+  - Fixed ESM module resolution issue where relative imports were missing `.js` extension in compiled output
+  - Added tsup as bundler to produce bundled ESM and CJS files, eliminating relative import path issues
+  - Build now uses `tsup` for JS bundling and `tsc --emitDeclarationOnly` for type declarations
+
 ## 0.4.3
 
 ### Patch Changes
